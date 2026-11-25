@@ -1,13 +1,13 @@
 {
-  "name": "antigravity-ssh-proxy",
-  "publisher": "dinobot22",
-  "displayName": "Antigravity SSH Proxy (ATP)",
-  "description": "Easily fix connectivity issues for the Antigravity remote server. This extension ensures your remote coding tools can bypass server firewalls by securely routing Antigravity's traffic through your local computer or a designated server gateway.",
+  "name": "antigravity-agy-proxy",
+  "publisher": "EmorZz1G",
+  "displayName": "Antigravity AGY Proxy",
+  "description": "Independent enhanced proxy & resilience extension for Antigravity IDE Remote-SSH (v2.6.0+ agy & legacy language servers), featuring UDP/FD leak prevention, SSH keepalive, crontab FD guard, and auto-troubleshooting.",
   "icon": "ATP.jpg",
-  "version": "0.0.17",
+  "version": "0.1.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/dinobot22/antigravity-ssh-proxy"
+    "url": "https://github.com/EmorZz1G/antigravity-agy-proxy"
   },
   "engines": {
     "vscode": "^1.100.0"
@@ -26,96 +26,149 @@
   "contributes": {
     "commands": [
       {
-        "command": "antigravity-ssh-proxy.setup",
-        "title": "Antigravity SSH Proxy: Setup Remote Environment"
+        "command": "antigravity-agy-proxy.setup",
+        "title": "Antigravity AGY Proxy: Setup Remote Environment"
       },
       {
-        "command": "antigravity-ssh-proxy.rollback",
-        "title": "Antigravity SSH Proxy: Rollback Remote Environment"
+        "command": "antigravity-agy-proxy.rollback",
+        "title": "Antigravity AGY Proxy: Rollback Remote Environment"
       },
       {
-        "command": "antigravity-ssh-proxy.enableForwarding",
-        "title": "Antigravity SSH Proxy: Enable Port Forwarding"
+        "command": "antigravity-agy-proxy.enableForwarding",
+        "title": "Antigravity AGY Proxy: Enable Port Forwarding"
       },
       {
-        "command": "antigravity-ssh-proxy.disableForwarding",
-        "title": "Antigravity SSH Proxy: Disable Port Forwarding"
+        "command": "antigravity-agy-proxy.disableForwarding",
+        "title": "Antigravity AGY Proxy: Disable Port Forwarding"
       },
       {
-        "command": "antigravity-ssh-proxy.tunnelStatus",
-        "title": "Antigravity SSH Proxy: Show Status"
+        "command": "antigravity-agy-proxy.tunnelStatus",
+        "title": "Antigravity AGY Proxy: Show Status"
       },
       {
-        "command": "antigravity-ssh-proxy.checkProxy",
-        "title": "Antigravity SSH Proxy: Check Proxy"
+        "command": "antigravity-agy-proxy.checkProxy",
+        "title": "Antigravity AGY Proxy: Check Proxy"
       },
       {
-        "command": "antigravity-ssh-proxy.showOutput",
-        "title": "Antigravity SSH Proxy: Show Output"
+        "command": "antigravity-agy-proxy.showOutput",
+        "title": "Antigravity AGY Proxy: Show Output"
       },
       {
-        "command": "antigravity-ssh-proxy.showStatusPanel",
-        "title": "Antigravity SSH Proxy: Show Status Panel"
+        "command": "antigravity-agy-proxy.showStatusPanel",
+        "title": "Antigravity AGY Proxy: Show Status Panel"
       },
       {
-        "command": "antigravity-ssh-proxy.refreshStatus",
-        "title": "Antigravity SSH Proxy: Refresh Status"
+        "command": "antigravity-agy-proxy.refreshStatus",
+        "title": "Antigravity AGY Proxy: Refresh Status"
       },
       {
-        "command": "antigravity-ssh-proxy.diagnose",
-        "title": "Antigravity SSH Proxy: Run Diagnostics"
+        "command": "antigravity-agy-proxy.diagnose",
+        "title": "Antigravity AGY Proxy: Run Diagnostics"
       },
       {
-        "command": "antigravity-ssh-proxy.showTrafficPanel",
-        "title": "Antigravity SSH Proxy: Show Traffic Monitor"
+        "command": "antigravity-agy-proxy.showTrafficPanel",
+        "title": "Antigravity AGY Proxy: Show Traffic Monitor"
+      },
+      {
+        "command": "antigravity-agy-proxy.autoFix",
+        "title": "Antigravity AGY Proxy: Auto Fix / Troubleshoot"
+      },
+      {
+        "command": "antigravity-agy-proxy.toggleFdGuard",
+        "title": "Antigravity AGY Proxy: Install / Remove FD Guard (Cron)"
       }
     ],
     "configuration": {
-      "title": "Antigravity SSH Proxy",
+      "title": "Antigravity AGY Proxy",
       "properties": {
-        "antigravity-ssh-proxy.enableLocalForwarding": {
+        "antigravity-agy-proxy.enableLocalForwarding": {
           "type": "boolean",
           "default": true,
           "scope": "application",
           "description": "Use local proxy via SSH tunnel. If true, the extension will manage ~/.ssh/config.antigravity and forward the remote port to your local machine."
         },
-        "antigravity-ssh-proxy.localProxyPort": {
+        "antigravity-agy-proxy.localProxyPort": {
           "type": "number",
           "default": 7890,
           "scope": "application",
           "description": "Local proxy port on your computer (e.g., 7890 for Clash). Only used when enableLocalForwarding is true."
         },
-        "antigravity-ssh-proxy.remoteProxyHost": {
+        "antigravity-agy-proxy.remoteProxyHost": {
           "type": "string",
           "default": "127.0.0.1",
           "scope": "machine-overridable",
           "description": "The host address on the remote server where the proxy is reachable. Use 127.0.0.1 when enableLocalForwarding is true."
         },
-        "antigravity-ssh-proxy.remoteProxyPort": {
+        "antigravity-agy-proxy.remoteProxyPort": {
           "type": "number",
           "default": 7890,
           "scope": "machine-overridable",
           "description": "The port on the remote server that should be used as the proxy gateway."
         },
-        "antigravity-ssh-proxy.showStatusOnStartup": {
+        "antigravity-agy-proxy.showStatusOnStartup": {
           "type": "boolean",
           "default": true,
           "scope": "machine-overridable",
           "description": "Show a status notification when connecting to a remote server. Displays proxy status and whether reload is needed."
         },
-        "antigravity-ssh-proxy.proxyType": {
+        "antigravity-agy-proxy.proxyType": {
           "type": "string",
           "default": "http",
           "enum": [
             "http",
-            "socks5"
+            "socks5",
+            "socks5h"
           ],
           "enumDescriptions": [
             "HTTP proxy (recommended for most proxy software like Clash, V2Ray)",
-            "SOCKS5 proxy (use if your proxy only supports SOCKS5)"
+            "SOCKS5 proxy (local DNS resolution)",
+            "SOCKS5H proxy (remote DNS resolution via proxy, helpful when local DNS is polluted)"
           ],
           "scope": "machine-overridable",
-          "description": "The proxy protocol type. Choose HTTP for most proxy software (Clash, V2Ray, etc), or SOCKS5 if your proxy only supports SOCKS5."
+          "description": "The proxy protocol type. Choose HTTP for most proxy software (Clash, V2Ray, etc), or SOCKS5/SOCKS5H if using SOCKS5."
+        },
+        "antigravity-agy-proxy.proxyMode": {
+          "type": "string",
+          "default": "mgraftcp-no-fakedns",
+          "enum": [
+            "mgraftcp-no-fakedns",
+            "env-only",
+            "mgraftcp-fakedns"
+          ],
+          "enumDescriptions": [
+            "TCP ptrace proxy via mgraftcp with FakeDNS disabled (--disable-fakedns). Recommended: intercepts non-proxy-aware traffic without leaking UDP sockets.",
+            "Pure proxy environment variables (HTTP_PROXY/HTTPS_PROXY/ALL_PROXY). Zero ptrace overhead and zero UDP FakeDNS sockets.",
+            "TCP ptrace proxy with FakeDNS + CGO DNS. Use only if server DNS is polluted and DNS cannot resolve directly."
+          ],
+          "scope": "machine-overridable",
+          "description": "How traffic interception is applied to agy / language_server on the remote host."
+        },
+        "antigravity-agy-proxy.enableFdGuard": {
+          "type": "boolean",
+          "default": false,
+          "scope": "machine-overridable",
+          "description": "Automatically maintain a rootless crontab guard that kills runaway agy.bak / language_server_linux*.bak processes exceeding fdGuardThreshold open file descriptors."
+        },
+        "antigravity-agy-proxy.fdGuardThreshold": {
+          "type": "number",
+          "default": 10000,
+          "minimum": 500,
+          "scope": "machine-overridable",
+          "description": "Open FD count threshold above which the FD Guard crontab terminates agy.bak / language_server_linux*.bak."
+        },
+        "antigravity-agy-proxy.fdGuardIntervalMinutes": {
+          "type": "number",
+          "default": 15,
+          "minimum": 1,
+          "maximum": 59,
+          "scope": "machine-overridable",
+          "description": "How often (in minutes) the FD Guard cron job inspects open file descriptors."
+        },
+        "antigravity-agy-proxy.autoFixOnStartup": {
+          "type": "boolean",
+          "default": false,
+          "scope": "machine-overridable",
+          "description": "Automatically remediate runaway FD leaks, FakeDNS bind failures, and protocol/mode mismatches when connecting to remote hosts."
         }
       }
     }

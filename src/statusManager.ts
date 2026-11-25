@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import * as net from 'net';
-import { runDiagnostics, DiagnosticCheck, DiagnosticReport, generateReportText, ProtocolTestResult } from './diagnostics/diagnosticRunner';
+import { runAllDiagnostics, DiagnosticCheck, DiagnosticReport, generateReportText, ProtocolTestResult } from './diagnostics/diagnosticRunner';
 import { TrafficCollector, TrafficStats } from './traffic/trafficCollector';
 
 export interface ProxyStatus {
@@ -23,7 +23,7 @@ const REFRESH_INTERVAL_SEC = 30;
 // i18n translations
 const i18n = {
     zh: {
-        title: 'Antigravity SSH Proxy(ATP)',
+        title: 'Antigravity AGY Proxy',
         local: '本地',
         remote: '远程',
         connected: '已连接',
@@ -48,6 +48,16 @@ const i18n = {
         proxyType: '代理类型',
         proxyTypeHttp: 'HTTP (推荐)',
         proxyTypeSocks5: 'SOCKS5',
+        proxyTypeSocks5h: 'SOCKS5H (远程DNS)',
+        proxyMode: '代理模式',
+        proxyModeNoFakedns: 'mgraftcp 无 FakeDNS (推荐)',
+        proxyModeEnvOnly: '仅环境变量 (零 UDP/ptrace 开销)',
+        proxyModeFakedns: 'mgraftcp + FakeDNS (仅DNS污染环境)',
+        proxyModeTip: '💡 推荐「无 FakeDNS」或「仅环境变量」，可彻底避免 agy FakeDNS 引发海量 UDP 句柄泄漏',
+        enableFdGuard: 'FD 守护定时任务 (Cron)',
+        fdGuardInterval: '巡检间隔 (分钟)',
+        fdGuardThreshold: 'FD 阈值',
+        autoFix: '一键排错',
         diagnostics: '诊断检查',
         runCheck: '运行检查',
         copyReport: '复制报告',
@@ -56,7 +66,10 @@ const i18n = {
         sshConfig: 'SSH 配置',
         remoteForward: '远程端口转发',
         mgraftcp: 'mgraftcp-fakedns',
-        lsWrapper: '语言服务包装',
+        lsWrapper: '后端包装 (agy / LS)',
+        lsProcess: '后端进程 (agy / LS)',
+        fdUdpHealth: 'FD 与 UDP 句柄健康',
+        dnsResolution: 'DNS 解析健康',
         externalConn: '外部连接',
         localOnly: '仅本地可用',
         remoteOnly: '仅远程可用',
@@ -98,11 +111,11 @@ const i18n = {
         rollbackTitle: '回滚操作',
         rollbackDesc: '此功能用于恢复之前的语言服务配置。仅当您遇到插件升级导致的严重问题或在卸载插件前使用。',
         localPortTip: '💡 此端口需与本地代理软件（如 Clash、V2Ray）的监听端口一致，默认通常为 7890',
-        remotePortTipLocal: '💡 此端口即 SSH 隧道在远端的监听端口，必须与远端 ATP 面板中「代理端口」的值保持一致',
-        remotePortTipRemote: '💡 此端口即 SSH 隧道在远端的监听端口，必须与本地 ATP 面板中「远程端口」的值保持一致',
+        remotePortTipLocal: '💡 此端口即 SSH 隧道在远端的监听端口，必须与远端 AGY Proxy 面板中「代理端口」的值保持一致',
+        remotePortTipRemote: '💡 此端口即 SSH 隧道在远端的监听端口，必须与本地 AGY Proxy 面板中「远程端口」的值保持一致',
     },
     en: {
-        title: 'Antigravity SSH Proxy(ATP)',
+        title: 'Antigravity AGY Proxy',
         local: 'Local',
         remote: 'Remote',
         connected: 'Connected',
@@ -127,6 +140,16 @@ const i18n = {
         proxyType: 'Proxy Type',
         proxyTypeHttp: 'HTTP (Recommended)',
         proxyTypeSocks5: 'SOCKS5',
+        proxyTypeSocks5h: 'SOCKS5H (Remote DNS)',
+        proxyMode: 'Proxy Mode',
+        proxyModeNoFakedns: 'mgraftcp No FakeDNS (Recommended)',
+        proxyModeEnvOnly: 'Env Vars Only (Zero UDP/ptrace)',
+        proxyModeFakedns: 'mgraftcp + FakeDNS (Polluted DNS)',
+        proxyModeTip: '💡 "No FakeDNS" or "Env Vars Only" is strongly recommended to prevent FakeDNS UDP socket & FD exhaustion',
+        enableFdGuard: 'FD Guard (Crontab)',
+        fdGuardInterval: 'Check Interval (min)',
+        fdGuardThreshold: 'FD Threshold',
+        autoFix: 'Auto Fix',
         diagnostics: 'Diagnostics',
         runCheck: 'Run Check',
         copyReport: 'Copy Report',
@@ -135,7 +158,10 @@ const i18n = {
         sshConfig: 'SSH Configuration',
         remoteForward: 'Remote Port Forwarding',
         mgraftcp: 'mgraftcp-fakedns',
-        lsWrapper: 'Language Server Wrapper',
+        lsWrapper: 'Backend Wrapper (agy / LS)',
+        lsProcess: 'Backend Process (agy / LS)',
+        fdUdpHealth: 'FD & UDP Port Health',
+        dnsResolution: 'DNS Resolution Health',
         externalConn: 'External Connectivity',
         localOnly: 'Local only',
         remoteOnly: 'Remote only',
@@ -177,8 +203,8 @@ const i18n = {
         rollbackTitle: 'Rollback Operation',
         rollbackDesc: 'Restores previous Language Server configuration. Use only if plugin update causes critical issues or before uninstalling.',
         localPortTip: '💡 Must match your local proxy software port (e.g., Clash, V2Ray). Default is usually 7890',
-        remotePortTipLocal: '💡 This is the SSH tunnel port on the remote side. It must match the "Proxy Port" in the Remote ATP panel',
-        remotePortTipRemote: '💡 This is the SSH tunnel port on the remote side. It must match the "Remote Port" in the Local ATP panel',
+        remotePortTipLocal: '💡 This is the SSH tunnel port on the remote side. It must match the "Proxy Port" in the Remote AGY Proxy panel',
+        remotePortTipRemote: '💡 This is the SSH tunnel port on the remote side. It must match the "Remote Port" in the Local AGY Proxy panel',
     }
 };
 
@@ -205,10 +231,10 @@ export class StatusManager {
             vscode.StatusBarAlignment.Left,
             -100
         );
-        this.statusBarItem.command = 'antigravity-ssh-proxy.showStatusPanel';
-        this.statusBarItem.name = 'ATP';
+        this.statusBarItem.command = 'antigravity-agy-proxy.showStatusPanel';
+        this.statusBarItem.name = 'AGY Proxy';
 
-        const config = vscode.workspace.getConfiguration('antigravity-ssh-proxy');
+        const config = vscode.workspace.getConfiguration('antigravity-agy-proxy');
         this.currentStatus = {
             runningLocation: isLocal ? 'local' : 'remote',
             sshConfigEnabled: false,
@@ -276,7 +302,7 @@ export class StatusManager {
     }
 
     async refreshStatus(): Promise<void> {
-        const config = vscode.workspace.getConfiguration('antigravity-ssh-proxy');
+        const config = vscode.workspace.getConfiguration('antigravity-agy-proxy');
 
         this.currentStatus.localProxyPort = config.get<number>('localProxyPort', 7890);
         this.currentStatus.remoteProxyPort = config.get<number>('remoteProxyPort', 7890);
@@ -331,8 +357,8 @@ export class StatusManager {
         }
 
         this.statusPanel = vscode.window.createWebviewPanel(
-            'atpStatus',
-            'Antigravity SSH Proxy',
+            'agyProxyStatus',
+            'Antigravity AGY Proxy',
             vscode.ViewColumn.One,
             {
                 enableScripts: true,
@@ -369,6 +395,10 @@ export class StatusManager {
                     case 'runDiagnostics':
                         await this.runInlineDiagnostics();
                         break;
+                    case 'autoFix':
+                        await vscode.commands.executeCommand('antigravity-agy-proxy.autoFix');
+                        await this.runInlineDiagnostics();
+                        break;
                     case 'copyReport':
                         await this.copyDiagnosticReport();
                         break;
@@ -387,7 +417,7 @@ export class StatusManager {
                         });
                         break;
                     case 'rollback':
-                        vscode.commands.executeCommand('antigravity-ssh-proxy.rollback');
+                        vscode.commands.executeCommand('antigravity-agy-proxy.rollback');
                         break;
                 }
             },
@@ -415,16 +445,27 @@ export class StatusManager {
         // Full rerender to show "running..." button state (user-triggered)
         this.forceRenderPanel();
 
+        const config = vscode.workspace.getConfiguration('antigravity-agy-proxy');
         try {
-            this.currentDiagnosticReport = await runDiagnostics((checks) => {
-                // Update panel with progress
-                if (this.statusPanel) {
-                    this.statusPanel.webview.postMessage({
-                        command: 'diagnosticProgress',
-                        checks: checks
-                    });
+            this.currentDiagnosticReport = await runAllDiagnostics(
+                !this.isLocal,
+                config.get<boolean>('enableLocalForwarding', true),
+                config.get<number>('localProxyPort', 7890),
+                config.get<string>('remoteProxyHost', '127.0.0.1'),
+                config.get<number>('remoteProxyPort', 7890),
+                config.get<string>('proxyType', 'http'),
+                config.get<string>('proxyMode', 'mgraftcp-no-fakedns'),
+                this.context.extensionUri.fsPath,
+                config.get<number>('fdGuardThreshold', 10000),
+                (checks) => {
+                    if (this.statusPanel) {
+                        this.statusPanel.webview.postMessage({
+                            command: 'diagnosticProgress',
+                            checks: checks
+                        });
+                    }
                 }
-            }, this.context.extensionUri.fsPath);
+            );
         } finally {
             this.isRunningDiagnostics = false;
             // Full rerender to show diagnostic results
@@ -453,9 +494,14 @@ export class StatusManager {
         remoteProxyHost?: string;
         enableLocalForwarding?: boolean;
         proxyType?: string;
+        proxyMode?: string;
+        enableFdGuard?: boolean;
+        fdGuardIntervalMinutes?: number;
+        fdGuardThreshold?: number;
     }): Promise<void> {
-        const config = vscode.workspace.getConfiguration('antigravity-ssh-proxy');
+        const config = vscode.workspace.getConfiguration('antigravity-agy-proxy');
         const oldProxyType = config.get<string>('proxyType', 'http');
+        const oldProxyMode = config.get<string>('proxyMode', 'mgraftcp-no-fakedns');
         const t = i18n[this.currentLang];
 
         try {
@@ -474,6 +520,18 @@ export class StatusManager {
             if (newConfig.proxyType !== undefined) {
                 await config.update('proxyType', newConfig.proxyType, vscode.ConfigurationTarget.Global);
             }
+            if (newConfig.proxyMode !== undefined) {
+                await config.update('proxyMode', newConfig.proxyMode, vscode.ConfigurationTarget.Global);
+            }
+            if (newConfig.enableFdGuard !== undefined) {
+                await config.update('enableFdGuard', newConfig.enableFdGuard, vscode.ConfigurationTarget.Global);
+            }
+            if (newConfig.fdGuardIntervalMinutes !== undefined && !Number.isNaN(newConfig.fdGuardIntervalMinutes)) {
+                await config.update('fdGuardIntervalMinutes', newConfig.fdGuardIntervalMinutes, vscode.ConfigurationTarget.Global);
+            }
+            if (newConfig.fdGuardThreshold !== undefined && !Number.isNaN(newConfig.fdGuardThreshold)) {
+                await config.update('fdGuardThreshold', newConfig.fdGuardThreshold, vscode.ConfigurationTarget.Global);
+            }
 
             // Trigger config change callback
             if (this.onConfigChange) {
@@ -482,11 +540,14 @@ export class StatusManager {
 
             await this.refreshStatus();
 
-            // If proxyType changed, prompt for reload
-            if (newConfig.proxyType !== undefined && newConfig.proxyType !== oldProxyType) {
+            const typeChanged = newConfig.proxyType !== undefined && newConfig.proxyType !== oldProxyType;
+            const modeChanged = newConfig.proxyMode !== undefined && newConfig.proxyMode !== oldProxyMode;
+
+            // If proxyType or proxyMode changed, prompt for reload
+            if (typeChanged || modeChanged) {
                 const reloadMsg = this.currentLang === 'zh'
-                    ? `代理类型已更改为 ${newConfig.proxyType.toUpperCase()}。请重新加载窗口以应用更改。`
-                    : `Proxy type changed to ${newConfig.proxyType.toUpperCase()}. Please reload window to apply changes.`;
+                    ? '代理协议或模式已更改，请重新加载窗口以应用更改。'
+                    : 'Proxy protocol or mode changed. Please reload window to apply changes.';
                 const reloadNow = this.currentLang === 'zh' ? '立即重载' : 'Reload Now';
                 const later = this.currentLang === 'zh' ? '稍后' : 'Later';
 
@@ -508,7 +569,7 @@ export class StatusManager {
 
         const status = this.currentStatus;
         const isLocal = status.runningLocation === 'local';
-        const config = vscode.workspace.getConfiguration('antigravity-ssh-proxy');
+        const config = vscode.workspace.getConfiguration('antigravity-agy-proxy');
         const t = i18n[this.currentLang];
         const trafficStats = this.trafficCollector.getStats();
 
@@ -569,25 +630,25 @@ export class StatusManager {
         if (this.isLocal) {
             if (status.sshConfigEnabled && status.localProxyReachable) {
                 this.statusBarItem.color = '#22c55e';
-                tooltip = 'Antigravity SSH Proxy (ATP)\n✅ Connected';
+                tooltip = 'Antigravity AGY Proxy\n✅ Connected';
             } else if (status.sshConfigEnabled) {
                 this.statusBarItem.color = '#eab308';
-                tooltip = 'Antigravity SSH Proxy (ATP)\n⚠️ SSH configured, proxy unreachable';
+                tooltip = 'Antigravity AGY Proxy\n⚠️ SSH configured, proxy unreachable';
             } else {
                 this.statusBarItem.color = '#ef4444';
-                tooltip = 'Antigravity SSH Proxy (ATP)\n❌ Disconnected';
+                tooltip = 'Antigravity AGY Proxy\n❌ Disconnected';
             }
         } else {
             if (status.remoteProxyReachable) {
                 this.statusBarItem.color = '#22c55e';
-                tooltip = 'Antigravity SSH Proxy (ATP)\n✅ Proxy OK';
+                tooltip = 'Antigravity AGY Proxy\n✅ Proxy OK';
             } else {
                 this.statusBarItem.color = '#ef4444';
-                tooltip = 'Antigravity SSH Proxy (ATP)\n❌ Proxy unreachable';
+                tooltip = 'Antigravity AGY Proxy\n❌ Proxy unreachable';
             }
         }
 
-        this.statusBarItem.text = '$(circle-large-filled) ATP';
+        this.statusBarItem.text = '$(circle-large-filled) AGY Proxy';
         this.statusBarItem.tooltip = tooltip;
         this.statusBarItem.backgroundColor = undefined;
     }
@@ -617,6 +678,9 @@ export class StatusManager {
             'remote-forward': t.remoteForward,
             'mgraftcp': t.mgraftcp,
             'ls-wrapper': t.lsWrapper,
+            'ls-process': t.lsProcess,
+            'fd-udp-health': t.fdUdpHealth,
+            'dns-resolution': t.dnsResolution,
             'external-connectivity': t.externalConn,
         };
         return names[id] || id;
@@ -625,9 +689,13 @@ export class StatusManager {
     private getPanelHtml(): string {
         const status = this.currentStatus;
         const isLocal = status.runningLocation === 'local';
-        const config = vscode.workspace.getConfiguration('antigravity-ssh-proxy');
+        const config = vscode.workspace.getConfiguration('antigravity-agy-proxy');
         const enableForwarding = config.get<boolean>('enableLocalForwarding', true);
         const proxyType = config.get<string>('proxyType', 'http');
+        const proxyMode = config.get<string>('proxyMode', 'mgraftcp-no-fakedns');
+        const enableFdGuard = config.get<boolean>('enableFdGuard', false);
+        const fdGuardIntervalMinutes = config.get<number>('fdGuardIntervalMinutes', 15);
+        const fdGuardThreshold = config.get<number>('fdGuardThreshold', 10000);
         const t = i18n[this.currentLang];
         const trafficStats = this.trafficCollector.getStats();
 
@@ -1408,7 +1476,32 @@ export class StatusManager {
                     <select id="proxyType">
                         <option value="http" ${proxyType === 'http' ? 'selected' : ''}>${t.proxyTypeHttp}</option>
                         <option value="socks5" ${proxyType === 'socks5' ? 'selected' : ''}>${t.proxyTypeSocks5}</option>
+                        <option value="socks5h" ${proxyType === 'socks5h' ? 'selected' : ''}>${t.proxyTypeSocks5h}</option>
                     </select>
+                </div>
+                <div class="input-row">
+                    <label>${t.proxyMode}</label>
+                    <select id="proxyMode">
+                        <option value="mgraftcp-no-fakedns" ${proxyMode === 'mgraftcp-no-fakedns' ? 'selected' : ''}>${t.proxyModeNoFakedns}</option>
+                        <option value="env-only" ${proxyMode === 'env-only' ? 'selected' : ''}>${t.proxyModeEnvOnly}</option>
+                        <option value="mgraftcp-fakedns" ${proxyMode === 'mgraftcp-fakedns' ? 'selected' : ''}>${t.proxyModeFakedns}</option>
+                    </select>
+                </div>
+                <div class="input-tip">${t.proxyModeTip}</div>
+                <div class="input-row">
+                    <label>${t.enableFdGuard}</label>
+                    <label class="toggle">
+                        <input type="checkbox" id="enableFdGuard" ${enableFdGuard ? 'checked' : ''}>
+                        <span class="toggle-slider"></span>
+                    </label>
+                </div>
+                <div class="input-row">
+                    <label>${t.fdGuardInterval}</label>
+                    <input type="number" id="fdGuardIntervalMinutes" value="${fdGuardIntervalMinutes}" min="1" max="59">
+                </div>
+                <div class="input-row">
+                    <label>${t.fdGuardThreshold}</label>
+                    <input type="number" id="fdGuardThreshold" value="${fdGuardThreshold}" min="500" max="500000">
                 </div>
                 `}
             </div>
@@ -1421,6 +1514,9 @@ export class StatusManager {
                 <div style="display: flex; gap: 6px;">
                     <button class="btn btn-sm" onclick="runDiagnostics()" ${this.isRunningDiagnostics ? 'disabled' : ''}>
                         ${this.isRunningDiagnostics ? t.running : t.runCheck}
+                    </button>
+                    <button class="btn btn-sm" onclick="autoFix()" ${isLocal || this.isRunningDiagnostics ? 'disabled' : ''}>
+                        ${t.autoFix}
                     </button>
                     <button class="btn btn-sm" onclick="copyReport()" ${!this.currentDiagnosticReport ? 'disabled' : ''}>
                         ${t.copyReport}
@@ -1508,12 +1604,20 @@ export class StatusManager {
                 config.remoteProxyHost = document.getElementById('remoteProxyHost').value;
                 config.remoteProxyPort = parseInt(document.getElementById('remoteProxyPort').value);
                 config.proxyType = document.getElementById('proxyType').value;
+                config.proxyMode = document.getElementById('proxyMode').value;
+                config.enableFdGuard = document.getElementById('enableFdGuard').checked;
+                config.fdGuardIntervalMinutes = parseInt(document.getElementById('fdGuardIntervalMinutes').value);
+                config.fdGuardThreshold = parseInt(document.getElementById('fdGuardThreshold').value);
             }
             vscode.postMessage({ command: 'saveConfig', config });
         }
         
         function runDiagnostics() {
             vscode.postMessage({ command: 'runDiagnostics' });
+        }
+
+        function autoFix() {
+            vscode.postMessage({ command: 'autoFix' });
         }
         
         function copyReport() {
@@ -1625,8 +1729,11 @@ export class StatusManager {
             { id: 'local-proxy', name: 'Local Proxy Service', status: 'pending' as const },
             { id: 'ssh-config', name: 'SSH Configuration', status: 'pending' as const },
             { id: 'remote-forward', name: 'Remote Port Forwarding', status: 'pending' as const },
-            { id: 'mgraftcp', name: 'mgraftcp Binary', status: 'pending' as const },
-            { id: 'ls-wrapper', name: 'Language Server Wrapper', status: 'pending' as const },
+            { id: 'mgraftcp', name: 'mgraftcp-fakedns Binary', status: 'pending' as const },
+            { id: 'ls-wrapper', name: 'Backend Wrapper (agy / LS)', status: 'pending' as const },
+            { id: 'ls-process', name: 'Backend Process (agy / LS)', status: 'pending' as const },
+            { id: 'fd-udp-health', name: 'FD & UDP Port Health', status: 'pending' as const },
+            { id: 'dns-resolution', name: 'DNS Resolution Health', status: 'pending' as const },
             { id: 'external-connectivity', name: 'External Connectivity', status: 'pending' as const }
         ];
 

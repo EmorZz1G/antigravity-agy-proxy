@@ -20,7 +20,7 @@ export class TrafficPanel {
      */
     show(): void {
         // Redirect to the main unified status panel
-        vscode.commands.executeCommand('antigravity-ssh-proxy.showStatusPanel');
+        vscode.commands.executeCommand('antigravity-agy-proxy.showStatusPanel');
     }
 
     /**

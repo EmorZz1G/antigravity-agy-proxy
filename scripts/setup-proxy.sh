@@ -2,24 +2,50 @@
 set -e
 
 # ============================================================================
-# Antigravity SSH Proxy - Setup Script
+# Antigravity AGY Proxy - Setup Script
 # ============================================================================
-# This script creates wrapper scripts for language servers to route their
-# traffic through a proxy using mgraftcp-fakedns.
+# This script creates wrapper scripts for Antigravity backend targets
+# (~/.gemini/bin/agy and legacy language_server_linux_*) to route traffic
+# through a proxy using one of three strategies:
+#   - mgraftcp-no-fakedns : TCP ptrace proxy without FakeDNS UDP socket leak
+#   - env-only            : Pure HTTP_PROXY/HTTPS_PROXY/ALL_PROXY env vars
+#   - mgraftcp-fakedns    : TCP ptrace + FakeDNS (requires CGO DNS)
 #
 # Environment Variables:
-#   PROXY_HOST       - Proxy server host (default: __PROXY_HOST__)
-#   PROXY_PORT       - Proxy server port (default: __PROXY_PORT__)
-#   PROXY_TYPE       - Proxy type: http or socks5 (default: __PROXY_TYPE__)
-#   EXTENSION_PATH   - Current extension's exact path (optional)
+#   PROXY_HOST        - Proxy server host (default: __PROXY_HOST__)
+#   PROXY_PORT        - Proxy server port (default: __PROXY_PORT__)
+#   PROXY_TYPE        - Proxy type: http, socks5, or socks5h (default: __PROXY_TYPE__)
+#   PROXY_MODE        - Proxy strategy: mgraftcp-no-fakedns, env-only, mgraftcp-fakedns
+#   EXTENSION_PATH    - Current extension's exact path (optional)
 #   EXTENSION_VERSION - Current extension version for update detection
-#   DEBUG            - Set to 1 for verbose output
+#   DEBUG             - Set to 1 for verbose output
 # ============================================================================
 
-# Use environment variables with defaults
-PROXY_HOST="${PROXY_HOST:-__PROXY_HOST__}"
-PROXY_PORT="${PROXY_PORT:-__PROXY_PORT__}"
-PROXY_TYPE="${PROXY_TYPE:-__PROXY_TYPE__}"
+# Use environment variables with defaults (guard against unsubstituted tokens)
+RAW_PROXY_HOST="${PROXY_HOST:-__PROXY_HOST__}"
+case "$RAW_PROXY_HOST" in
+    ""|__PROXY_HOST__) PROXY_HOST="127.0.0.1" ;;
+    *) PROXY_HOST="$RAW_PROXY_HOST" ;;
+esac
+
+RAW_PROXY_PORT="${PROXY_PORT:-__PROXY_PORT__}"
+case "$RAW_PROXY_PORT" in
+    ""|__PROXY_PORT__) PROXY_PORT="7890" ;;
+    *) PROXY_PORT="$RAW_PROXY_PORT" ;;
+esac
+
+RAW_PROXY_TYPE="${PROXY_TYPE:-__PROXY_TYPE__}"
+case "$RAW_PROXY_TYPE" in
+    ""|__PROXY_TYPE__) PROXY_TYPE="http" ;;
+    *) PROXY_TYPE="$RAW_PROXY_TYPE" ;;
+esac
+
+RAW_PROXY_MODE="${PROXY_MODE:-__PROXY_MODE__}"
+case "$RAW_PROXY_MODE" in
+    ""|__PROXY_MODE__) PROXY_MODE="mgraftcp-no-fakedns" ;;
+    *) PROXY_MODE="$RAW_PROXY_MODE" ;;
+esac
+
 EXTENSION_PATH="${EXTENSION_PATH:-}"
 EXTENSION_VERSION="${EXTENSION_VERSION:-unknown}"
 PROXY_ADDR="${PROXY_HOST}:${PROXY_PORT}"
@@ -51,7 +77,7 @@ error_log() {
 # Header
 # ============================================================================
 echo "========================================"
-echo "Antigravity SSH Proxy - Setup"
+echo "Antigravity AGY Proxy - Setup"
 echo "========================================"
 echo ""
 
@@ -106,12 +132,56 @@ for dir in "${POSSIBLE_SERVER_DIRS[@]}"; do
 done
 
 if [ -z "$SERVER_DIR" ]; then
-    error_log "No Antigravity server directory found!"
-    error_log "Searched: ${POSSIBLE_SERVER_DIRS[*]}"
-    exit 1
+    for dir in "${POSSIBLE_SERVER_DIRS[@]}"; do
+        if [ -d "$dir" ]; then
+            SERVER_DIR="$dir"
+            break
+        fi
+    done
+fi
+
+if [ -z "$SERVER_DIR" ]; then
+    SERVER_DIR="$HOME/.antigravity-ide-server"
 fi
 
 info_log "Server Directory: $SERVER_DIR"
+
+# Helper to place mgraftcp binary and library
+place_mgraftcp() {
+    local target_dir="$1"
+    mkdir -p "$target_dir"
+    
+    local src_binary=""
+    local src_lib=""
+    
+    # Method 1: Check EXTENSION_PATH first
+    if [ -n "$EXTENSION_PATH" ] && [ -f "$EXTENSION_PATH/resources/bin/$EXPECTED_BINARY" ]; then
+        src_binary="$EXTENSION_PATH/resources/bin/$EXPECTED_BINARY"
+        [ -f "$EXTENSION_PATH/resources/bin/$EXPECTED_LIB" ] && src_lib="$EXTENSION_PATH/resources/bin/$EXPECTED_LIB"
+    fi
+    
+    # Method 2: Search in extension directories
+    if [ -z "$src_binary" ]; then
+        for d in $(ls -d "$HOME/.antigravity-ide-server/extensions/"*antigravity-agy-proxy*/resources/bin "$HOME/.antigravity-server/extensions/"*antigravity-agy-proxy*/resources/bin 2>/dev/null | sort -t'-' -k3 -V -r); do
+            if [ -f "$d/$EXPECTED_BINARY" ]; then
+                src_binary="$d/$EXPECTED_BINARY"
+                [ -f "$d/$EXPECTED_LIB" ] && src_lib="$d/$EXPECTED_LIB"
+                break
+            fi
+        done
+    fi
+    
+    if [ -n "$src_binary" ] && [ -f "$src_binary" ]; then
+        cp -f "$src_binary" "$target_dir/${EXPECTED_BINARY}.tmp.$$"
+        chmod +x "$target_dir/${EXPECTED_BINARY}.tmp.$$"
+        mv -f "$target_dir/${EXPECTED_BINARY}.tmp.$$" "$target_dir/$EXPECTED_BINARY"
+        if [ -n "$src_lib" ] && [ -f "$src_lib" ]; then
+            cp -f "$src_lib" "$target_dir/${EXPECTED_LIB}.tmp.$$"
+            mv -f "$target_dir/${EXPECTED_LIB}.tmp.$$" "$target_dir/$EXPECTED_LIB"
+        fi
+        debug_log "Placed mgraftcp in $target_dir"
+    fi
+}
 
 # ============================================================================
 # Scan for extension directories (for debugging)
@@ -119,7 +189,7 @@ info_log "Server Directory: $SERVER_DIR"
 if [ "$DEBUG" = "1" ]; then
     echo ""
     echo "[SCAN] Searching for extension directories..."
-    EXT_DIRS=$(ls -d "$SERVER_DIR/extensions/"*antigravity-ssh-proxy* 2>/dev/null | sort -t'-' -k3 -V -r || echo "")
+    EXT_DIRS=$(ls -d "$SERVER_DIR/extensions/"*antigravity-agy-proxy* 2>/dev/null | sort -t'-' -k3 -V -r || echo "")
     if [ -n "$EXT_DIRS" ]; then
         echo "$EXT_DIRS" | while read -r dir; do
             echo "  📦 $dir"
@@ -164,10 +234,16 @@ get_wrapper_proxy_type() {
     grep -oP 'PROXY_TYPE="\K[^"]+' "$wrapper" 2>/dev/null || echo "none"
 }
 
-# Check if target is a wrapper script (bash script)
+# Extract proxy mode from a wrapper script
+get_wrapper_proxy_mode() {
+    local wrapper="$1"
+    grep -oP 'PROXY_MODE="\K[^"]+' "$wrapper" 2>/dev/null || echo "none"
+}
+
+# Check if target is a wrapper script (current ANTIGRAVITY_AGY_PROXY_WRAPPER or legacy formats)
 is_wrapper_script() {
     local target="$1"
-    head -1 "$target" 2>/dev/null | grep -q "^#!/bin/bash"
+    grep -qE "(ANTIGRAVITY_AGY_PROXY_WRAPPER|ANTIGRAVITY_SSH_PROXY_WRAPPER|WRAPPER_VERSION=|mgraftcp-fakedns)" "$target" 2>/dev/null
 }
 
 # Determine if wrapper needs to be updated
@@ -175,9 +251,15 @@ is_wrapper_script() {
 check_needs_update() {
     local target="$1"
     
-    # Check 1: Not a wrapper script (original binary) → needs wrapper creation
+    # Check 1: Not a wrapper script (original binary or updated binary) → needs wrapper creation
     if ! is_wrapper_script "$target"; then
         echo "new_install"
+        return 0
+    fi
+
+    # Check 1.5: Legacy wrapper without ANTIGRAVITY_AGY_PROXY_WRAPPER marker → seamless upgrade preserving .bak
+    if ! grep -q "ANTIGRAVITY_AGY_PROXY_WRAPPER" "$target" 2>/dev/null; then
+        echo "upgrade_wrapper_format"
         return 0
     fi
     
@@ -201,33 +283,77 @@ check_needs_update() {
         echo "proxy_type:$wrapper_proxy_type->$PROXY_TYPE"
         return 0
     fi
+
+    # Check 5: Proxy mode mismatch → needs update
+    local wrapper_proxy_mode=$(get_wrapper_proxy_mode "$target")
+    if [ "$PROXY_MODE" != "$wrapper_proxy_mode" ]; then
+        echo "proxy_mode:$wrapper_proxy_mode->$PROXY_MODE"
+        return 0
+    fi
     
     # All checks passed → up-to-date
     return 1
 }
 
 # ============================================================================
-# Find Language Servers
+# Find Targets (Language Servers and agy Binary)
 # ============================================================================
-echo "[SEARCH] Looking for language servers..."
-TARGETS=$(find "$SERVER_DIR/bin" -path "*/extensions/antigravity/bin/language_server_linux_*" -type f 2>/dev/null | grep -v ".bak$")
+echo "[SEARCH] Looking for targets (language servers and agy binary)..."
+TARGETS=""
+
+# 1. Check for Antigravity IDE v2.6.0+ binary (~/.gemini/bin/agy)
+AGY_BIN="$HOME/.gemini/bin/agy"
+if [ -f "$AGY_BIN" ]; then
+    info_log "Found Antigravity IDE v2.6.0+ target: $AGY_BIN"
+    TARGETS="$AGY_BIN"
+    place_mgraftcp "$SERVER_DIR/mgraftcp"
+elif [ -f "$AGY_BIN.bak" ] && grep -qE "(ANTIGRAVITY_AGY_PROXY_WRAPPER|ANTIGRAVITY_SSH_PROXY_WRAPPER)" "$AGY_BIN" 2>/dev/null; then
+    info_log "Found Antigravity IDE v2.6.0+ wrapped target: $AGY_BIN"
+    TARGETS="$AGY_BIN"
+    place_mgraftcp "$SERVER_DIR/mgraftcp"
+fi
+
+# 2. Check for legacy language servers (pre-v2.6.0)
+LEGACY_TARGETS=""
+for dir in "${POSSIBLE_SERVER_DIRS[@]}"; do
+    if [ -d "$dir/bin" ]; then
+        found=$(find "$dir/bin" -path "*/extensions/antigravity/bin/language_server_[l]inux_*" -type f 2>/dev/null | grep -v "\.bak$" || true)
+        if [ -n "$found" ]; then
+            LEGACY_TARGETS="${LEGACY_TARGETS:+$LEGACY_TARGETS"$'\n'"}$found"
+        fi
+    fi
+done
+
+if [ -n "$LEGACY_TARGETS" ]; then
+    info_log "Found legacy language server target(s)"
+    if [ -n "$TARGETS" ]; then
+        TARGETS="$TARGETS"$'\n'"$LEGACY_TARGETS"
+    else
+        TARGETS="$LEGACY_TARGETS"
+    fi
+fi
+
+# Filter empty lines and duplicates
+TARGETS=$(echo "$TARGETS" | sed '/^$/d' | sort -u)
 
 if [ -z "$TARGETS" ]; then
-    error_log "No language servers found!"
+    error_log "No Antigravity language server or agy binary found!"
+    error_log "Searched ~/.gemini/bin/agy and ${POSSIBLE_SERVER_DIRS[*]}/bin"
+    error_log "For Antigravity IDE v2.6.0+, ~/.gemini/bin/agy was not found. Please configure VS Code 'http.proxy' first so the IDE completes the initial agy binary download before running proxy setup."
     exit 1
 fi
 
 TARGET_COUNT=$(echo "$TARGETS" | wc -l)
-info_log "Found $TARGET_COUNT language server(s)"
+info_log "Found $TARGET_COUNT target(s)"
 echo ""
 
 # ============================================================================
-# Process Each Language Server
+# Process Each Target
 # ============================================================================
 CONFIGURED_COUNT=0
 SKIPPED_COUNT=0
 
-echo "[PROCESS] Configuring language servers..."
+echo "[PROCESS] Configuring targets..."
 echo ""
 
 while IFS= read -r TARGET; do
@@ -247,49 +373,103 @@ while IFS= read -r TARGET; do
             debug_log "  Version: $(get_wrapper_version "$TARGET")"
             debug_log "  Proxy: $(get_wrapper_proxy_addr "$TARGET")"
             debug_log "  Type: $(get_wrapper_proxy_type "$TARGET")"
+            debug_log "  Mode: $(get_wrapper_proxy_mode "$TARGET")"
         fi
     else
         # Already up-to-date
-        info_log "Already up-to-date (v$EXTENSION_VERSION, $PROXY_ADDR, $PROXY_TYPE)"
+        info_log "Already up-to-date (v$EXTENSION_VERSION, $PROXY_ADDR, $PROXY_TYPE, $PROXY_MODE)"
         SKIPPED_COUNT=$((SKIPPED_COUNT + 1))
         continue
     fi
 
-    # Create backup if needed
-    if [ ! -f "$BAK" ]; then
-        if is_wrapper_script "$TARGET"; then
-            error_log "Target is a wrapper script but no backup exists!"
-            error_log "Cannot proceed without original binary backup"
+    # Safe Backup Across IDE Self-Updates (using atomic rename to avoid ETXTBSY "Text file busy")
+    if is_wrapper_script "$TARGET"; then
+        # Target is already a wrapper script: keep existing backup intact
+        if [ ! -f "$BAK" ]; then
+            error_log "Target $TARGET is already a wrapper script but backup $BAK is missing!"
+            error_log "Cannot proceed without original binary backup to avoid clobbering"
             continue
         fi
-        mv "$TARGET" "$BAK"
-        info_log "Backup created: $BAK"
-    else
         debug_log "Backup already exists: $BAK"
+    else
+        # Target is an ELF binary (original or newly updated from IDE self-update)
+        # Copy to temp file and atomically mv to $BAK so even a running $BAK never causes Text file busy
+        BAK_TMP="${BAK}.tmp.$$"
+        cp -f "$TARGET" "$BAK_TMP"
+        chmod +x "$BAK_TMP"
+        mv -f "$BAK_TMP" "$BAK"
+        info_log "Backup created: $BAK"
     fi
 
     # ========================================================================
-    # Create Wrapper Script
+    # Create Wrapper Script (write to temp file and mv -f to avoid Text file busy)
     # ========================================================================
-    # The wrapper script dynamically finds mgraftcp-fakedns at runtime,
-    # allowing version upgrades without breaking existing wrappers.
+    # Supports three modes:
+    #   - mgraftcp-no-fakedns : TCP ptrace interception with --disable-fakedns
+    #   - env-only            : Pure proxy environment variables (no ptrace/UDP)
+    #   - mgraftcp-fakedns    : TCP ptrace + FakeDNS (GODEBUG=netdns=cgo)
     # ========================================================================
-cat > "$TARGET" << 'WRAPPER_EOF'
+    WRAPPER_TMP="${TARGET}.tmp.$$"
+cat > "$WRAPPER_TMP" << 'WRAPPER_EOF'
 #!/bin/bash
+# ANTIGRAVITY_AGY_PROXY_WRAPPER
 # ============================================================================
-# Antigravity SSH Proxy - Language Server Wrapper
+# Antigravity AGY Proxy - Language Server Wrapper
 # ============================================================================
 # WRAPPER_VERSION="__EXTENSION_VERSION_PLACEHOLDER__"
 # GENERATED="__TIMESTAMP_PLACEHOLDER__"
 # ============================================================================
+
+# Bypass proxy wrapper for version checks (used by Antigravity IDE v2.6.0+ startup verification)
+if [ "$1" = "--version" ] || [ "$1" = "-v" ]; then
+    exec "$0.bak" "$@"
+fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}")"
 
 # Proxy configuration - can be updated without replacing the wrapper
 PROXY_ADDR="__PROXY_ADDR_PLACEHOLDER__"
+PROXY_PORT="__PROXY_PORT_PLACEHOLDER__"
 PROXY_TYPE="__PROXY_TYPE_PLACEHOLDER__"
+PROXY_MODE="__PROXY_MODE_PLACEHOLDER__"
 EXTENSION_BIN_PATH="__EXTENSION_BIN_PATH_PLACEHOLDER__"
+
+# Export standard proxy environment variables across all modes
+export NO_PROXY="localhost,127.0.0.1,::1${NO_PROXY:+,$NO_PROXY}"
+export no_proxy="localhost,127.0.0.1,::1${no_proxy:+,$no_proxy}"
+
+case "$PROXY_TYPE" in
+    socks5h)
+        export HTTP_PROXY="socks5h://$PROXY_ADDR"
+        export HTTPS_PROXY="socks5h://$PROXY_ADDR"
+        export ALL_PROXY="socks5h://$PROXY_ADDR"
+        export http_proxy="socks5h://$PROXY_ADDR"
+        export https_proxy="socks5h://$PROXY_ADDR"
+        export all_proxy="socks5h://$PROXY_ADDR"
+        ;;
+    socks5)
+        export HTTP_PROXY="socks5://$PROXY_ADDR"
+        export HTTPS_PROXY="socks5://$PROXY_ADDR"
+        export ALL_PROXY="socks5://$PROXY_ADDR"
+        export http_proxy="socks5://$PROXY_ADDR"
+        export https_proxy="socks5://$PROXY_ADDR"
+        export all_proxy="socks5://$PROXY_ADDR"
+        ;;
+    *)
+        export HTTP_PROXY="http://$PROXY_ADDR"
+        export HTTPS_PROXY="http://$PROXY_ADDR"
+        export ALL_PROXY="http://$PROXY_ADDR"
+        export http_proxy="http://$PROXY_ADDR"
+        export https_proxy="http://$PROXY_ADDR"
+        export all_proxy="http://$PROXY_ADDR"
+        ;;
+esac
+
+# Strategy 1 (pure env mode): bypass mgraftcp, ptrace, and FakeDNS completely
+if [ "$PROXY_MODE" = "env-only" ]; then
+    exec "$SCRIPT_DIR/$SCRIPT_NAME.bak" "$@"
+fi
 
 # Dynamically find mgraftcp-fakedns and libdnsredir at runtime
 find_binaries() {
@@ -319,9 +499,20 @@ find_binaries() {
         fi
     fi
     
+    # Method 1.5: Check server mgraftcp directory
+    for mdir in "$HOME/.antigravity-ide-server/mgraftcp" "$HOME/.antigravity-server/mgraftcp"; do
+        if [ -f "$mdir/$binary_name" ]; then
+            echo "$mdir/$binary_name"
+            if [ -f "$mdir/$lib_name" ]; then
+                echo "$mdir/$lib_name"
+            fi
+            return 0
+        fi
+    done
+
     # Method 2: Fallback - search in all versions (sorted by version, newest first)
     # Search in all possible server directories (new name first, then legacy)
-    for dir in $(ls -d "$HOME/.antigravity-ide-server/extensions/"*antigravity-ssh-proxy*/resources/bin "$HOME/.antigravity-server/extensions/"*antigravity-ssh-proxy*/resources/bin 2>/dev/null | sort -t'-' -k3 -V -r); do
+    for dir in $(ls -d "$HOME/.antigravity-ide-server/extensions/"*antigravity-agy-proxy*/resources/bin "$HOME/.antigravity-server/extensions/"*antigravity-agy-proxy*/resources/bin 2>/dev/null | sort -t'-' -k3 -V -r); do
         if [ -f "$dir/$binary_name" ]; then
             echo "$dir/$binary_name"
             if [ -f "$dir/$lib_name" ]; then
@@ -339,45 +530,65 @@ MGRAFTCP_PATH=$(echo "$BINARIES" | head -1)
 DNSREDIR_PATH=$(echo "$BINARIES" | tail -1)
 
 if [ -z "$MGRAFTCP_PATH" ] || [ ! -f "$MGRAFTCP_PATH" ]; then
-    # Fallback: run without proxy if mgraftcp not found
+    # Fallback: run with env vars if mgraftcp not found
     exec "$SCRIPT_DIR/$SCRIPT_NAME.bak" "$@"
 fi
 
 chmod +x "$MGRAFTCP_PATH" 2>/dev/null || true
 
-# Force Go programs to use cgo DNS resolver (required for LD_PRELOAD to work)
-export GODEBUG="${GODEBUG:+$GODEBUG,}netdns=cgo"
+MGRAFTCP_ARGS=()
+if [ "$PROXY_MODE" = "mgraftcp-fakedns" ]; then
+    # Traditional FakeDNS mode: force Go programs to use cgo DNS resolver for LD_PRELOAD FakeDNS
+    export GODEBUG="${GODEBUG:+$GODEBUG,}netdns=cgo"
+else
+    # Default robust mode (mgraftcp-no-fakedns): keep ptrace TCP proxy, disable FakeDNS UDP server
+    MGRAFTCP_ARGS+=(--disable-fakedns)
+fi
 
 # Select proxy argument based on proxy type
-if [ "$PROXY_TYPE" = "socks5" ]; then
-    exec "$MGRAFTCP_PATH" --socks5 "$PROXY_ADDR" "$SCRIPT_DIR/$SCRIPT_NAME.bak" "$@"
+if [ "$PROXY_TYPE" = "socks5" ] || [ "$PROXY_TYPE" = "socks5h" ]; then
+    exec "$MGRAFTCP_PATH" "${MGRAFTCP_ARGS[@]}" --socks5 "$PROXY_ADDR" "$SCRIPT_DIR/$SCRIPT_NAME.bak" "$@"
 else
     # Default to http proxy
-    exec "$MGRAFTCP_PATH" --http_proxy "$PROXY_ADDR" "$SCRIPT_DIR/$SCRIPT_NAME.bak" "$@"
+    exec "$MGRAFTCP_PATH" "${MGRAFTCP_ARGS[@]}" --http_proxy "$PROXY_ADDR" "$SCRIPT_DIR/$SCRIPT_NAME.bak" "$@"
 fi
 WRAPPER_EOF
 
-    # Replace placeholders with actual values
-    sed -i "s|__PROXY_ADDR_PLACEHOLDER__|$PROXY_ADDR|g" "$TARGET"
-    sed -i "s|__PROXY_TYPE_PLACEHOLDER__|$PROXY_TYPE|g" "$TARGET"
-    sed -i "s|__EXTENSION_VERSION_PLACEHOLDER__|$EXTENSION_VERSION|g" "$TARGET"
-    sed -i "s|__TIMESTAMP_PLACEHOLDER__|$(date -Iseconds)|g" "$TARGET"
+    # Replace placeholders with actual values on temp file, then atomically replace target
+    sed -i "s|__PROXY_ADDR_PLACEHOLDER__|$PROXY_ADDR|g" "$WRAPPER_TMP"
+    sed -i "s|__PROXY_PORT_PLACEHOLDER__|$PROXY_PORT|g" "$WRAPPER_TMP"
+    sed -i "s|__PROXY_TYPE_PLACEHOLDER__|$PROXY_TYPE|g" "$WRAPPER_TMP"
+    sed -i "s|__PROXY_MODE_PLACEHOLDER__|$PROXY_MODE|g" "$WRAPPER_TMP"
+    sed -i "s|__EXTENSION_VERSION_PLACEHOLDER__|$EXTENSION_VERSION|g" "$WRAPPER_TMP"
+    sed -i "s|__TIMESTAMP_PLACEHOLDER__|$(date -Iseconds)|g" "$WRAPPER_TMP"
     
     # Set extension bin path if provided
     if [ -n "$EXTENSION_PATH" ]; then
         EXTENSION_BIN_DIR="$EXTENSION_PATH/resources/bin"
-        sed -i "s|__EXTENSION_BIN_PATH_PLACEHOLDER__|$EXTENSION_BIN_DIR|g" "$TARGET"
+        sed -i "s|__EXTENSION_BIN_PATH_PLACEHOLDER__|$EXTENSION_BIN_DIR|g" "$WRAPPER_TMP"
     else
-        sed -i "s|__EXTENSION_BIN_PATH_PLACEHOLDER__||g" "$TARGET"
+        sed -i "s|__EXTENSION_BIN_PATH_PLACEHOLDER__||g" "$WRAPPER_TMP"
     fi
 
-    chmod +x "$TARGET"
+    chmod +x "$WRAPPER_TMP"
+    mv -f "$WRAPPER_TMP" "$TARGET"
     info_log "Wrapper created successfully"
     info_log "  Version: $EXTENSION_VERSION"
-    info_log "  Proxy: $PROXY_ADDR ($PROXY_TYPE)"
+    info_log "  Proxy: $PROXY_ADDR ($PROXY_TYPE, $PROXY_MODE)"
     CONFIGURED_COUNT=$((CONFIGURED_COUNT + 1))
 
 done <<< "$TARGETS"
+
+# ============================================================================
+# Step 7: Process Termination (only when wrappers were newly created/updated)
+# ============================================================================
+if [ $CONFIGURED_COUNT -gt 0 ] && [ "${SKIP_PKILL:-0}" != "1" ]; then
+    info_log "Terminating running language server, agy, and mgraftcp processes to apply new wrapper..."
+    pkill -9 -f "[l]anguage_server_linux.*\.bak" 2>/dev/null || true
+    pkill -9 -f "[l]anguage_server_linux" 2>/dev/null || true
+    pkill -9 -f "[.]gemini/bin/agy(\.bak)?.*--hub" 2>/dev/null || true
+    pkill -9 -f "[m]graftcp-fakedns.*(agy|language_server_linux)" 2>/dev/null || true
+fi
 
 # ============================================================================
 # Summary
@@ -389,6 +600,7 @@ echo "========================================"
 echo "  Extension Version: $EXTENSION_VERSION"
 echo "  Proxy Address: $PROXY_ADDR"
 echo "  Proxy Type: $PROXY_TYPE"
+echo "  Proxy Mode: $PROXY_MODE"
 echo "----------------------------------------"
 if [ $CONFIGURED_COUNT -gt 0 ]; then
     echo "  ✅ Configured: $CONFIGURED_COUNT wrapper(s) created/updated"
@@ -400,11 +612,11 @@ echo "========================================"
 
 if [ $CONFIGURED_COUNT -gt 0 ]; then
     echo ""
-    echo "Setup complete: proxy=$PROXY_ADDR"
-    echo "Note: Reload window to apply changes to language server."
+    echo "Setup complete: proxy=$PROXY_ADDR ($PROXY_TYPE, $PROXY_MODE)"
+    echo "Note: Reload window to apply changes to language server / agy."
 elif [ $SKIPPED_COUNT -gt 0 ]; then
     echo ""
-    echo "Already configured with $PROXY_ADDR (v$EXTENSION_VERSION)"
+    echo "Already configured with $PROXY_ADDR ($PROXY_TYPE, $PROXY_MODE, v$EXTENSION_VERSION)"
 else
     echo ""
     error_log "No language servers were configured!"

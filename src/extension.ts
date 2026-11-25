@@ -9,6 +9,16 @@ import { generateSetupScript, generateRollbackScript } from './remoteSetup';
 import { StatusManager } from './statusManager';
 import { DiagnosticPanel } from './diagnostics/diagnosticPanel';
 import { TrafficPanel } from './traffic/trafficPanel';
+import {
+	inspectAntigravityMgraftcpProcesses,
+	inspectBackendProcesses,
+	inspectUdpAndFdHealth,
+	killBackendProcesses,
+	ProxyMode,
+	ProxyProtocol
+} from './processUtils';
+import { installFdGuard, removeFdGuard } from './fdGuard';
+import { runAutoFix } from './diagnostics/diagnosticRunner';
 
 const execAsync = promisify(exec);
 
@@ -27,6 +37,20 @@ function isRunningLocally(): boolean {
 	return !vscode.env.remoteName;
 }
 
+function normalizeProxyType(raw: string): ProxyProtocol {
+	if (raw === 'socks5' || raw === 'socks5h') {
+		return raw;
+	}
+	return 'http';
+}
+
+function normalizeProxyMode(raw: string): ProxyMode {
+	if (raw === 'env-only' || raw === 'mgraftcp-fakedns') {
+		return raw;
+	}
+	return 'mgraftcp-no-fakedns';
+}
+
 async function checkPortAvailable(host: string, port: number): Promise<boolean> {
 	return new Promise((resolve) => {
 		const socket = new net.Socket();
@@ -39,97 +63,52 @@ async function checkPortAvailable(host: string, port: number): Promise<boolean> 
 }
 
 /**
- * Check if mgraftcp is currently running (i.e., Language Server is using proxy)
+ * Check if mgraftcp-fakedns is currently running for Antigravity
  */
 async function isMgraftcpRunning(): Promise<boolean> {
-	try {
-		const { stdout } = await execAsync('pgrep -f mgraftcp');
-		return stdout.trim().length > 0;
-	} catch {
-		// pgrep returns non-zero if no process found
-		return false;
-	}
+	const mgProcs = await inspectAntigravityMgraftcpProcesses();
+	return mgProcs.length > 0;
 }
 
 /**
- * Get Language Server process info
- * Returns PID and whether it's running in persistent mode
- * 
- * When LS runs through mgraftcp, ps shows two processes:
- * 1. mgraftcp process (parent, contains "language_server_linux" as argument)
- * 2. actual language_server process (child, the .bak binary)
- * 
- * We need to find the actual LS process and determine if it was started via mgraftcp
+ * Get active Antigravity backend process info (`~/.gemini/bin/agy --hub` or legacy `language_server_linux_*`).
  */
-async function getLanguageServerProcess(): Promise<{ pid: number; isPersistent: boolean; isUsingProxy: boolean } | null> {
-	try {
-		const { stdout } = await execAsync('ps aux | grep language_server_linux | grep -v grep');
-		const lines = stdout.trim().split('\n').filter(l => l.length > 0);
-		
-		// First pass: check if mgraftcp is wrapping the LS (indicates proxy is active)
-		const hasMgraftcpWrapper = lines.some(line => line.includes('mgraftcp'));
-		
-		// Second pass: find the actual LS process (not the mgraftcp line)
-		for (const line of lines) {
-			// Skip the mgraftcp wrapper line, we want the actual LS binary
-			if (line.includes('mgraftcp-fakedns')) {
-				continue;
-			}
-			
-			// Look for the actual language_server process (either direct or .bak)
-			if (line.includes('language_server_linux')) {
-				const parts = line.split(/\s+/);
-				if (parts.length >= 2) {
-					const pid = parseInt(parts[1]);
-					const isPersistent = line.includes('--persistent_mode') || line.includes('persistent_mode');
-					
-					if (!isNaN(pid)) {
-						return { 
-							pid, 
-							isPersistent, 
-							isUsingProxy: hasMgraftcpWrapper 
-						};
-					}
-				}
-			}
-		}
-	} catch {
-		// No process found
+async function getLanguageServerProcess(): Promise<{
+	pid: number;
+	isPersistent: boolean;
+	isUsingProxy: boolean;
+	targetType: 'agy' | 'language_server';
+	fdCount: number;
+	detectedMode: ProxyMode | 'unknown';
+} | null> {
+	const procs = await inspectBackendProcesses();
+	if (procs.length === 0) {
+		return null;
 	}
-	return null;
+	const primary = procs[0];
+	return {
+		pid: primary.pid,
+		isPersistent: primary.isPersistent,
+		isUsingProxy: primary.isWrappedBak && (primary.hasMgraftcpParent || primary.hasProxyEnv),
+		targetType: primary.targetType,
+		fdCount: primary.fdCount,
+		detectedMode: primary.detectedMode
+	};
 }
 
 /**
- * Kill Language Server process to force restart through wrapper
- * This is needed when LS is running in persistent_mode and was started before wrapper was configured
+ * Kill Antigravity backend processes (`agy --hub` / `language_server_linux`) and orphaned mgraftcp parents
+ * so the IDE restarts them cleanly through the configured wrapper.
  */
 async function killLanguageServer(): Promise<boolean> {
-	const lsProcess = await getLanguageServerProcess();
-	if (!lsProcess) {
-		log('No Language Server process found to kill');
+	const result = await killBackendProcesses();
+	const totalKilled = result.killedPids.length + result.killedMgraftcpPids.length;
+	if (totalKilled === 0) {
+		log('No Antigravity backend process found to kill');
 		return false;
 	}
-	
-	try {
-		log(`Killing Language Server process (PID: ${lsProcess.pid}, persistent: ${lsProcess.isPersistent})`);
-		await execAsync(`kill ${lsProcess.pid}`);
-		
-		// Wait a bit for process to terminate
-		await new Promise(resolve => setTimeout(resolve, 1000));
-		
-		// Verify it's gone
-		const stillRunning = await getLanguageServerProcess();
-		if (stillRunning && stillRunning.pid === lsProcess.pid) {
-			log('Process still running, using SIGKILL');
-			await execAsync(`kill -9 ${lsProcess.pid}`);
-		}
-		
-		log('Language Server process killed successfully');
-		return true;
-	} catch (error) {
-		log(`Failed to kill Language Server: ${error}`);
-		return false;
-	}
+	log(`Killed backend process(es): ${result.killedPids.join(', ') || 'none'} (mgraftcp: ${result.killedMgraftcpPids.join(', ') || 'none'})`);
+	return true;
 }
 
 /**
@@ -172,7 +151,7 @@ function getAntigravityConfigPath(): string {
 }
 
 /**
- * Update the SSH config files using the Include approach
+ * Update the SSH config files using the Include approach (with SSH keepalive for tunnel resilience)
  */
 async function updateSSHConfigFile(remotePort: number, localPort: number, enable: boolean): Promise<void> {
 	const mainConfigPath = getSSHConfigPath();
@@ -185,12 +164,14 @@ async function updateSSHConfigFile(remotePort: number, localPort: number, enable
 		if (enable) {
 			// 1. Create/Update the config.antigravity file
 			const antiContent = [
-				'# Antigravity SSH Proxy Configuration',
+				'# Antigravity AGY Proxy Configuration',
 				`# Generated at: ${new Date().toISOString()}`,
 				'Match all',
 				`    RemoteForward ${remotePort} 127.0.0.1:${localPort}`,
 				'    ExitOnForwardFailure no',
 				'    VisualHostKey no',
+				'    ServerAliveInterval 30',
+				'    ServerAliveCountMax 3',
 				'',
 			].join('\n');
 			await fs.writeFile(antiConfigPath, antiContent, 'utf-8');
@@ -256,7 +237,7 @@ async function getSSHConfigStatus(): Promise<{ enabled: boolean; port?: number }
 
 export function activate(context: vscode.ExtensionContext) {
 	// 创建专用的 Output Channel
-	outputChannel = vscode.window.createOutputChannel('Antigravity SSH Proxy');
+	outputChannel = vscode.window.createOutputChannel('Antigravity AGY Proxy');
 	context.subscriptions.push(outputChannel);
 
 	log(`Activating... isLocal=${isRunningLocally()}`);
@@ -275,35 +256,35 @@ export function activate(context: vscode.ExtensionContext) {
 
 	// 注册显示输出窗口的命令
 	context.subscriptions.push(
-		vscode.commands.registerCommand('antigravity-ssh-proxy.showOutput', () => {
+		vscode.commands.registerCommand('antigravity-agy-proxy.showOutput', () => {
 			outputChannel.show();
 		})
 	);
 
 	// 注册显示状态面板的命令
 	context.subscriptions.push(
-		vscode.commands.registerCommand('antigravity-ssh-proxy.showStatusPanel', () => {
+		vscode.commands.registerCommand('antigravity-agy-proxy.showStatusPanel', () => {
 			statusManager.showStatusPanel();
 		})
 	);
 
 	// 注册刷新状态的命令
 	context.subscriptions.push(
-		vscode.commands.registerCommand('antigravity-ssh-proxy.refreshStatus', async () => {
+		vscode.commands.registerCommand('antigravity-agy-proxy.refreshStatus', async () => {
 			await statusManager.refreshStatus();
 		})
 	);
 
 	// 注册诊断命令
 	context.subscriptions.push(
-		vscode.commands.registerCommand('antigravity-ssh-proxy.diagnose', async () => {
+		vscode.commands.registerCommand('antigravity-agy-proxy.diagnose', async () => {
 			await diagnosticPanel.show();
 		})
 	);
 
 	// 注册流量监控命令
 	context.subscriptions.push(
-		vscode.commands.registerCommand('antigravity-ssh-proxy.showTrafficPanel', () => {
+		vscode.commands.registerCommand('antigravity-agy-proxy.showTrafficPanel', () => {
 			trafficPanel.show();
 		})
 	);
@@ -321,7 +302,7 @@ export function activate(context: vscode.ExtensionContext) {
 async function activateLocal(context: vscode.ExtensionContext) {
 	// 设置配置变更回调（用于面板中修改配置时触发）
 	statusManager.setConfigChangeCallback(async () => {
-		const cfg = vscode.workspace.getConfiguration('antigravity-ssh-proxy');
+		const cfg = vscode.workspace.getConfiguration('antigravity-agy-proxy');
 		const lp = cfg.get<number>('localProxyPort', 7890);
 		const rp = cfg.get<number>('remoteProxyPort', 7890);
 		const enabled = cfg.get<boolean>('enableLocalForwarding', true);
@@ -329,7 +310,7 @@ async function activateLocal(context: vscode.ExtensionContext) {
 		statusManager.updateSSHConfigStatus(enabled, rp);
 	});
 
-	const config = vscode.workspace.getConfiguration('antigravity-ssh-proxy');
+	const config = vscode.workspace.getConfiguration('antigravity-agy-proxy');
 	const enable = config.get<boolean>('enableLocalForwarding', true);
 	const localPort = config.get<number>('localProxyPort', 7890);
 	const remotePort = config.get<number>('remoteProxyPort', 7890);
@@ -358,8 +339,8 @@ async function activateLocal(context: vscode.ExtensionContext) {
 	// Watch config changes (from VS Code settings)
 	context.subscriptions.push(
 		vscode.workspace.onDidChangeConfiguration(async (e: vscode.ConfigurationChangeEvent) => {
-			if (e.affectsConfiguration('antigravity-ssh-proxy')) {
-				const cfg = vscode.workspace.getConfiguration('antigravity-ssh-proxy');
+			if (e.affectsConfiguration('antigravity-agy-proxy')) {
+				const cfg = vscode.workspace.getConfiguration('antigravity-agy-proxy');
 				const lp = cfg.get<number>('localProxyPort', 7890);
 				const rp = cfg.get<number>('remoteProxyPort', 7890);
 				const enabled = cfg.get<boolean>('enableLocalForwarding', true);
@@ -372,8 +353,8 @@ async function activateLocal(context: vscode.ExtensionContext) {
 
 	// Commands
 	context.subscriptions.push(
-		vscode.commands.registerCommand('antigravity-ssh-proxy.enableForwarding', async () => {
-			const cfg = vscode.workspace.getConfiguration('antigravity-ssh-proxy');
+		vscode.commands.registerCommand('antigravity-agy-proxy.enableForwarding', async () => {
+			const cfg = vscode.workspace.getConfiguration('antigravity-agy-proxy');
 			const lp = cfg.get<number>('localProxyPort', 7890);
 			const rp = cfg.get<number>('remoteProxyPort', 7890);
 			await updateSSHConfigFile(rp, lp, true);
@@ -382,14 +363,14 @@ async function activateLocal(context: vscode.ExtensionContext) {
 			vscode.window.showInformationMessage('SSH port forwarding enabled');
 		}),
 
-		vscode.commands.registerCommand('antigravity-ssh-proxy.disableForwarding', async () => {
+		vscode.commands.registerCommand('antigravity-agy-proxy.disableForwarding', async () => {
 			await updateSSHConfigFile(0, 0, false);
 			statusManager.updateSSHConfigStatus(false);
 			await statusManager.refreshStatus();
 			vscode.window.showInformationMessage('SSH port forwarding disabled');
 		}),
 
-		vscode.commands.registerCommand('antigravity-ssh-proxy.tunnelStatus', async () => {
+		vscode.commands.registerCommand('antigravity-agy-proxy.tunnelStatus', async () => {
 			const status = await getSSHConfigStatus();
 			statusManager.updateSSHConfigStatus(status.enabled, status.port);
 			vscode.window.showInformationMessage(
@@ -432,96 +413,253 @@ async function ensureMgraftcpExecutable(extensionPath: string): Promise<void> {
 	}
 }
 
+async function syncFdGuardFromConfig(removeWhenDisabled: boolean): Promise<void> {
+	const cfg = vscode.workspace.getConfiguration('antigravity-agy-proxy');
+	const enabled = cfg.get<boolean>('enableFdGuard', false);
+	const interval = cfg.get<number>('fdGuardIntervalMinutes', 15);
+	const threshold = cfg.get<number>('fdGuardThreshold', 10000);
+
+	if (enabled) {
+		const res = await installFdGuard(interval, threshold);
+		if (res.success) {
+			log(`FD Guard cron active (*/${interval}m, threshold >${threshold})`);
+		} else {
+			log(`FD Guard cron install failed: ${res.error}`);
+		}
+	} else if (removeWhenDisabled) {
+		const res = await removeFdGuard();
+		if (res.success) {
+			log('FD Guard cron removed');
+		}
+	}
+}
+
+async function executeAutoFixCommand(extensionPath: string, extensionVersion: string, silentIfHealthy = false): Promise<void> {
+	const cfg = vscode.workspace.getConfiguration('antigravity-agy-proxy');
+	const host = cfg.get<string>('remoteProxyHost', '127.0.0.1');
+	const port = cfg.get<number>('remoteProxyPort', 7890);
+	const type = normalizeProxyType(cfg.get<string>('proxyType', 'http'));
+	const mode = normalizeProxyMode(cfg.get<string>('proxyMode', 'mgraftcp-no-fakedns'));
+	const enableFdGuard = cfg.get<boolean>('enableFdGuard', false);
+	const fdGuardIntervalMinutes = cfg.get<number>('fdGuardIntervalMinutes', 15);
+	const fdGuardThreshold = cfg.get<number>('fdGuardThreshold', 10000);
+
+	const runFix = async () => {
+		const result = await runAutoFix({
+			proxyHost: host,
+			proxyPort: port,
+			proxyType: type,
+			proxyMode: mode,
+			extensionPath,
+			extensionVersion,
+			enableFdGuard,
+			fdGuardIntervalMinutes,
+			fdGuardThreshold,
+			updateConfig: async (key, value) => {
+				await vscode.workspace.getConfiguration('antigravity-agy-proxy').update(
+					key,
+					value,
+					vscode.ConfigurationTarget.Global
+				);
+			},
+			runSetup: async (h, p, t, m) => runSetupScriptSilently(h, p, t, m, extensionPath)
+		});
+
+		for (const act of result.actions) {
+			log(`[AutoFix] ${act}`);
+		}
+		for (const rem of result.remainingIssues) {
+			log(`[AutoFix][WARN] ${rem}`);
+		}
+
+		await statusManager.refreshStatus();
+
+		if (silentIfHealthy && !result.changedConfig && !result.needsReload && result.remainingIssues.length === 0) {
+			return;
+		}
+
+		const summary = result.actions.join(' | ');
+		if (result.remainingIssues.length > 0) {
+			vscode.window.showWarningMessage(
+				`Auto Fix: ${summary}. Remaining: ${result.remainingIssues.join(' ')}`,
+				'Run Diagnostics',
+				...(result.needsReload ? ['Reload Now'] : [])
+			).then(sel => {
+				if (sel === 'Run Diagnostics') {
+					vscode.commands.executeCommand('antigravity-agy-proxy.diagnose');
+				} else if (sel === 'Reload Now') {
+					vscode.commands.executeCommand('workbench.action.reloadWindow');
+				}
+			});
+		} else if (result.needsReload) {
+			vscode.window.showInformationMessage(
+				`Auto Fix applied: ${summary}`,
+				'Reload Now',
+				'Later'
+			).then(sel => {
+				if (sel === 'Reload Now') {
+					vscode.commands.executeCommand('workbench.action.reloadWindow');
+				}
+			});
+		} else {
+			vscode.window.showInformationMessage(`Auto Fix: ${summary}`);
+		}
+	};
+
+	if (silentIfHealthy) {
+		await runFix();
+	} else {
+		await vscode.window.withProgress(
+			{
+				location: vscode.ProgressLocation.Notification,
+				title: 'Antigravity AGY Proxy: Running Auto Fix...',
+				cancellable: false
+			},
+			runFix
+		);
+	}
+}
+
+async function readExtensionVersion(extensionPath: string): Promise<string> {
+	try {
+		const packageJsonContent = await fs.readFile(path.join(extensionPath, 'package.json'), 'utf-8');
+		const packageJson = JSON.parse(packageJsonContent) as { version?: string };
+		return packageJson.version || 'unknown';
+	} catch {
+		return 'unknown';
+	}
+}
+
 async function activateRemote(context: vscode.ExtensionContext) {
-	const config = vscode.workspace.getConfiguration('antigravity-ssh-proxy');
-	// Remote only cares about remoteProxyHost, remoteProxyPort, and proxyType
+	const config = vscode.workspace.getConfiguration('antigravity-agy-proxy');
 	const remoteHost = config.get<string>('remoteProxyHost', '127.0.0.1');
 	const remotePort = config.get<number>('remoteProxyPort', 7890);
-	const proxyType = config.get<string>('proxyType', 'http');
+	const proxyType = normalizeProxyType(config.get<string>('proxyType', 'http'));
+	const proxyMode = normalizeProxyMode(config.get<string>('proxyMode', 'mgraftcp-no-fakedns'));
 
 	if (process.platform !== 'linux') {
 		log(`Skipping setup: unsupported platform '${process.platform}' (only Linux is supported)`);
 		return;
 	}
 
-	// Use extensionUri.fsPath for correct remote path resolution
 	const extensionPath = context.extensionUri.fsPath;
+	const extensionVersion = await readExtensionVersion(extensionPath);
 
 	// Ensure mgraftcp binary has execute permission before setup
 	await ensureMgraftcpExecutable(extensionPath);
 
-	// 设置配置变更回调（用于面板中修改配置时触发）
+	// Sync FD guard cron if enabled
+	await syncFdGuardFromConfig(false);
+
+	// Panel configuration callback
 	statusManager.setConfigChangeCallback(async () => {
-		const cfg = vscode.workspace.getConfiguration('antigravity-ssh-proxy');
+		const cfg = vscode.workspace.getConfiguration('antigravity-agy-proxy');
 		const host = cfg.get<string>('remoteProxyHost', '127.0.0.1');
 		const port = cfg.get<number>('remoteProxyPort', 7890);
-		const type = cfg.get<string>('proxyType', 'http');
-		log(`Config changed from panel, re-running setup: ${host}:${port} (${type})`);
-		const success = await runSetupScriptSilently(host, port, type, extensionPath);
+		const type = normalizeProxyType(cfg.get<string>('proxyType', 'http'));
+		const mode = normalizeProxyMode(cfg.get<string>('proxyMode', 'mgraftcp-no-fakedns'));
+		log(`Config changed from panel, re-running setup: ${host}:${port} (${type}, ${mode})`);
+		const success = await runSetupScriptSilently(host, port, type, mode, extensionPath);
 		statusManager.updateLanguageServerStatus(success);
+		await syncFdGuardFromConfig(true);
 	});
 
-	log(`Remote Proxy: ${remoteHost}:${remotePort} (${proxyType})`);
+	log(`Remote Proxy: ${remoteHost}:${remotePort} (${proxyType}, mode=${proxyMode})`);
 
-	// 初始刷新状态
 	await statusManager.refreshStatus();
 
 	// Auto-run setup script
 	log(`Extension path: ${extensionPath}`);
 	log('Auto-running setup script...');
-	const setupSuccess = await runSetupScriptSilently(remoteHost, remotePort, proxyType, extensionPath);
+	const setupSuccess = await runSetupScriptSilently(remoteHost, remotePort, proxyType, proxyMode, extensionPath);
 	statusManager.updateLanguageServerStatus(setupSuccess);
 
 	// Watch config changes (from VS Code settings)
 	context.subscriptions.push(
 		vscode.workspace.onDidChangeConfiguration(async (e: vscode.ConfigurationChangeEvent) => {
-			if (e.affectsConfiguration('antigravity-ssh-proxy.remoteProxyHost') ||
-				e.affectsConfiguration('antigravity-ssh-proxy.remoteProxyPort') ||
-				e.affectsConfiguration('antigravity-ssh-proxy.proxyType')) {
-				const cfg = vscode.workspace.getConfiguration('antigravity-ssh-proxy');
+			if (
+				e.affectsConfiguration('antigravity-agy-proxy.remoteProxyHost') ||
+				e.affectsConfiguration('antigravity-agy-proxy.remoteProxyPort') ||
+				e.affectsConfiguration('antigravity-agy-proxy.proxyType') ||
+				e.affectsConfiguration('antigravity-agy-proxy.proxyMode')
+			) {
+				const cfg = vscode.workspace.getConfiguration('antigravity-agy-proxy');
 				const host = cfg.get<string>('remoteProxyHost', '127.0.0.1');
 				const port = cfg.get<number>('remoteProxyPort', 7890);
-				const type = cfg.get<string>('proxyType', 'http');
-				log(`Config changed, re-running setup: ${host}:${port} (${type})`);
-				const success = await runSetupScriptSilently(host, port, type, extensionPath);
+				const type = normalizeProxyType(cfg.get<string>('proxyType', 'http'));
+				const mode = normalizeProxyMode(cfg.get<string>('proxyMode', 'mgraftcp-no-fakedns'));
+				log(`Config changed, re-running setup: ${host}:${port} (${type}, ${mode})`);
+				const success = await runSetupScriptSilently(host, port, type, mode, extensionPath);
 				statusManager.updateLanguageServerStatus(success);
 				await statusManager.refreshStatus();
+			}
+			if (
+				e.affectsConfiguration('antigravity-agy-proxy.enableFdGuard') ||
+				e.affectsConfiguration('antigravity-agy-proxy.fdGuardIntervalMinutes') ||
+				e.affectsConfiguration('antigravity-agy-proxy.fdGuardThreshold')
+			) {
+				await syncFdGuardFromConfig(true);
 			}
 		})
 	);
 
 	// Remote commands
 	context.subscriptions.push(
-		vscode.commands.registerCommand('antigravity-ssh-proxy.setup', () => {
-			const cfg = vscode.workspace.getConfiguration('antigravity-ssh-proxy');
-			const type = cfg.get<string>('proxyType', 'http');
-			const terminal = vscode.window.createTerminal('Antigravity Setup');
+		vscode.commands.registerCommand('antigravity-agy-proxy.setup', () => {
+			const cfg = vscode.workspace.getConfiguration('antigravity-agy-proxy');
+			const host = cfg.get<string>('remoteProxyHost', '127.0.0.1');
+			const port = cfg.get<number>('remoteProxyPort', 7890);
+			const type = normalizeProxyType(cfg.get<string>('proxyType', 'http'));
+			const mode = normalizeProxyMode(cfg.get<string>('proxyMode', 'mgraftcp-no-fakedns'));
+			const terminal = vscode.window.createTerminal('Antigravity AGY Proxy Setup');
 			terminal.show();
-			const script = generateSetupScript(remoteHost, remotePort, type, extensionPath);
+			const script = generateSetupScript(host, port, type, extensionPath, mode);
 			terminal.sendText(`cat > /tmp/ag_setup.sh << 'EOF'\n${script}\nEOF`);
-			terminal.sendText('bash /tmp/ag_setup.sh');
+			terminal.sendText(`EXTENSION_PATH="${extensionPath}" EXTENSION_VERSION="${extensionVersion}" bash /tmp/ag_setup.sh`);
 		}),
 
-		vscode.commands.registerCommand('antigravity-ssh-proxy.rollback', () => {
-			const terminal = vscode.window.createTerminal('Antigravity Rollback');
+		vscode.commands.registerCommand('antigravity-agy-proxy.rollback', () => {
+			const terminal = vscode.window.createTerminal('Antigravity AGY Proxy Rollback');
 			terminal.show();
-			terminal.sendText(generateRollbackScript());
+			terminal.sendText(generateRollbackScript(true));
 			statusManager.updateLanguageServerStatus(false);
 		}),
 
-		vscode.commands.registerCommand('antigravity-ssh-proxy.checkProxy', async () => {
-			const ok = await checkPortAvailable(remoteHost, remotePort);
+		vscode.commands.registerCommand('antigravity-agy-proxy.checkProxy', async () => {
+			const cfg = vscode.workspace.getConfiguration('antigravity-agy-proxy');
+			const host = cfg.get<string>('remoteProxyHost', '127.0.0.1');
+			const port = cfg.get<number>('remoteProxyPort', 7890);
+			const ok = await checkPortAvailable(host, port);
 			await statusManager.refreshStatus();
-			vscode.window.showInformationMessage(ok ? `Proxy OK` : `Proxy NOT reachable`);
+			vscode.window.showInformationMessage(ok ? `Proxy OK (${host}:${port})` : `Proxy NOT reachable (${host}:${port})`);
+		}),
+
+		vscode.commands.registerCommand('antigravity-agy-proxy.autoFix', async () => {
+			await executeAutoFixCommand(extensionPath, extensionVersion, false);
+		}),
+
+		vscode.commands.registerCommand('antigravity-agy-proxy.toggleFdGuard', async () => {
+			const cfg = vscode.workspace.getConfiguration('antigravity-agy-proxy');
+			const currentlyEnabled = cfg.get<boolean>('enableFdGuard', false);
+			const nextEnabled = !currentlyEnabled;
+			await cfg.update('enableFdGuard', nextEnabled, vscode.ConfigurationTarget.Global);
+			await syncFdGuardFromConfig(true);
+			await statusManager.refreshStatus();
+			const interval = cfg.get<number>('fdGuardIntervalMinutes', 15);
+			const threshold = cfg.get<number>('fdGuardThreshold', 10000);
+			vscode.window.showInformationMessage(
+				nextEnabled
+					? `FD Guard crontab installed (every ${interval}m, threshold >${threshold}).`
+					: 'FD Guard crontab removed.'
+			);
 		})
 	);
 
 	// Show startup status notification if enabled
 	const showStatusOnStartup = config.get<boolean>('showStatusOnStartup', true);
 	if (showStatusOnStartup) {
-		// Delay slightly to let setup complete
 		setTimeout(async () => {
-			await showStartupStatus(remoteHost, remotePort);
+			await showStartupStatus(remoteHost, remotePort, extensionPath, extensionVersion);
 		}, 2000);
 	}
 }
@@ -542,19 +680,19 @@ async function showSSHTunnelNotEstablishedWarning(proxyHost: string, proxyPort: 
 		`  2. Open a new local window (File > New Window)\n` +
 		`  3. Connect to the remote server from the local window\n\n` +
 		`─── Cause 2: Port mismatch ───\n` +
-		`The "Remote Port" in the Local ATP panel must equal\n` +
-		`the "Proxy Port" in the Remote ATP panel.\n` +
+		`The "Remote Port" in the Local AGY Proxy panel must equal\n` +
+		`the "Proxy Port" in the Remote AGY Proxy panel.\n` +
 		`Fix:\n` +
-		`  1. Open the ATP panel (click the status bar item)\n` +
+		`  1. Open the AGY Proxy panel (click the status bar item)\n` +
 		`  2. In the Local window: note the "Remote Port" value\n` +
 		`  3. In the Remote window: set "Proxy Port" to the same value\n` +
 		`  4. Save and reconnect\n\n` +
 		`─── Cause 3: Local proxy software not running ───\n` +
 		`The local proxy (e.g., Clash, V2Ray) may not be started,\n` +
-		`or its port does not match the "Local Port" in the ATP panel.\n` +
+		`or its port does not match the "Local Port" in the AGY Proxy panel.\n` +
 		`Fix:\n` +
 		`  1. Start your local proxy software\n` +
-		`  2. Open the ATP panel and confirm "Local Port" matches your proxy's port\n` +
+		`  2. Open the AGY Proxy panel and confirm "Local Port" matches your proxy's port\n` +
 		`  3. Save and reconnect`;
 
 	log('Showing proxy not reachable warning dialog');
@@ -562,16 +700,16 @@ async function showSSHTunnelNotEstablishedWarning(proxyHost: string, proxyPort: 
 	const selection = await vscode.window.showWarningMessage(
 		detailMessage,
 		{ modal: true },
-		'Open ATP Panel',
+		'Open AGY Proxy Panel',
 		'Run Diagnostics',
 		'Close Remote Connection',
 		'Dismiss'
 	);
 
-	if (selection === 'Open ATP Panel') {
-		vscode.commands.executeCommand('antigravity-ssh-proxy.showStatusPanel');
+	if (selection === 'Open AGY Proxy Panel') {
+		vscode.commands.executeCommand('antigravity-agy-proxy.showStatusPanel');
 	} else if (selection === 'Run Diagnostics') {
-		vscode.commands.executeCommand('antigravity-ssh-proxy.diagnose');
+		vscode.commands.executeCommand('antigravity-agy-proxy.diagnose');
 	} else if (selection === 'Close Remote Connection') {
 		vscode.window.showInformationMessage(
 			'After closing: 1) Open a new local window  2) Connect to remote from there',
@@ -585,97 +723,97 @@ async function showSSHTunnelNotEstablishedWarning(proxyHost: string, proxyPort: 
 /**
  * Show startup status notification with detailed diagnostics in output channel
  */
-async function showStartupStatus(proxyHost: string, proxyPort: number): Promise<void> {
+async function showStartupStatus(
+	proxyHost: string,
+	proxyPort: number,
+	extensionPath: string,
+	extensionVersion: string
+): Promise<void> {
 	try {
+		const config = vscode.workspace.getConfiguration('antigravity-agy-proxy');
+		const currentProxyType = normalizeProxyType(config.get<string>('proxyType', 'http'));
+		const currentProxyMode = normalizeProxyMode(config.get<string>('proxyMode', 'mgraftcp-no-fakedns'));
+		const fdGuardThreshold = config.get<number>('fdGuardThreshold', 10000);
+		const autoFixOnStartup = config.get<boolean>('autoFixOnStartup', false);
+
 		log('');
 		log('========== Startup Status Check ==========');
-		log(`Proxy endpoint: ${proxyHost}:${proxyPort}`);
+		log(`Proxy endpoint: ${proxyHost}:${proxyPort} (${currentProxyType}, mode=${currentProxyMode})`);
 		log('');
 
 		// Test 1: Port connectivity
 		log(`[Test 1] Checking port connectivity...`);
-		log(`  Command: nc -zv ${proxyHost} ${proxyPort}`);
 		const proxyReachable = await checkPortAvailable(proxyHost, proxyPort);
 		log(`  Result: ${proxyReachable ? '✓ Port is reachable' : '✗ Port is NOT reachable'}`);
 		log('');
 
-		// Test 2: mgraftcp process
-		log(`[Test 2] Checking if mgraftcp is running...`);
-		log(`  Command: pgrep -f mgraftcp`);
+		// Test 2: mgraftcp process (aware of env-only mode)
+		log(`[Test 2] Checking mgraftcp process status...`);
 		const proxyActive = await isMgraftcpRunning();
-		log(`  Result: ${proxyActive ? '✓ mgraftcp is running (proxy active)' : '✗ mgraftcp is NOT running'}`);
-		log('');
-
-		// Test 2.5: Language Server process status (always check for diagnostic purposes)
-		log(`[Test 2.5] Checking Language Server process status...`);
-		const lsProcess = await getLanguageServerProcess();
-		if (lsProcess) {
-			const modeLabel = lsProcess.isPersistent ? 'persistent mode' : 'normal mode';
-			const proxyLabel = lsProcess.isUsingProxy ? 'using proxy' : 'NOT using proxy';
-			const statusIcon = lsProcess.isUsingProxy ? '✓' : (lsProcess.isPersistent ? '✗' : '⚠');
-			log(`  Result: ${statusIcon} Language Server (PID ${lsProcess.pid}) is running in ${modeLabel}, ${proxyLabel}`);
-			
-			if (lsProcess.isPersistent && !lsProcess.isUsingProxy) {
-				log(`  ⚠️ WARNING: LS is in persistent_mode but not using proxy!`);
-				log(`    This is the bug scenario where LS was started before wrapper was configured.`);
-				log(`    Will auto-fix by killing LS process...`);
-			}
+		if (currentProxyMode === 'env-only') {
+			log(`  Result: ○ env-only mode configured (mgraftcp intentionally bypassed)`);
 		} else {
-			log(`  Result: ○ Language Server is not running (will start on demand)`);
+			log(`  Result: ${proxyActive ? '✓ mgraftcp is running (proxy active)' : '✗ mgraftcp is NOT running'}`);
 		}
 		log('');
 
-		// Test 3: External connectivity (only if port is reachable)
+		// Test 2.5: Backend process status (agy --hub & legacy LS)
+		log(`[Test 2.5] Checking Antigravity backend process status...`);
+		const lsProcess = await getLanguageServerProcess();
+		if (lsProcess) {
+			const targetLabel = lsProcess.targetType === 'agy' ? 'agy --hub' : 'Language Server';
+			const modeLabel = lsProcess.isPersistent ? 'persistent mode' : 'normal mode';
+			const proxyLabel = lsProcess.isUsingProxy ? `using proxy (${lsProcess.detectedMode})` : 'NOT using proxy';
+			const statusIcon = lsProcess.isUsingProxy ? '✓' : (lsProcess.isPersistent ? '✗' : '⚠');
+			log(`  Result: ${statusIcon} ${targetLabel} (PID ${lsProcess.pid}, FDs ${lsProcess.fdCount}) is running in ${modeLabel}, ${proxyLabel}`);
+
+			if (lsProcess.isPersistent && !lsProcess.isUsingProxy) {
+				log(`  ⚠️ WARNING: Backend is in persistent mode without proxy! Will kill to apply wrapper...`);
+			}
+		} else {
+			log(`  Result: ○ No backend process running yet (will start via wrapper on demand)`);
+		}
+		log('');
+
+		// Test 2.6: UDP / FD health check
+		const udpHealth = await inspectUdpAndFdHealth(undefined, Math.min(fdGuardThreshold, 2000));
+		const udpPct = Math.round(udpHealth.udpUsageRatio * 100);
+		log(`[Test 2.6] FD & UDP socket health: maxFDs=${udpHealth.maxBackendFdCount}, udp=${udpHealth.udpSocketsTotal}/${udpHealth.ephemeralCapacity} (${udpPct}%)`);
+		const hasCriticalFdOrFakeDns =
+			udpHealth.maxBackendFdCount >= fdGuardThreshold ||
+			udpHealth.udpUsageRatio >= 0.7 ||
+			udpHealth.recentLogErrors.fakednsBindFailed ||
+			udpHealth.recentLogErrors.tooManyOpenFiles;
+		if (hasCriticalFdOrFakeDns) {
+			log(`  ⚠️ CRITICAL: Detected high FD count / UDP saturation / FakeDNS exhaustion!`);
+			if (autoFixOnStartup) {
+				log('  autoFixOnStartup=true: executing automatic remediation...');
+				await executeAutoFixCommand(extensionPath, extensionVersion, true);
+				return;
+			}
+		}
+		log('');
+
+		// Test 3..5: External connectivity (HTTP, SOCKS5, SOCKS5H)
 		if (proxyReachable) {
-			const config = vscode.workspace.getConfiguration('antigravity-ssh-proxy');
-			const currentProxyType = config.get<string>('proxyType', 'http');
+			const testCurl = async (label: string, protoFlag: string, protoKey: ProxyProtocol) => {
+				log(`[Test] Testing ${label} proxy connectivity...`);
+				const cmd = `curl -s -o /dev/null -w "%{http_code}" --max-time 8 ${protoFlag} https://www.google.com/generate_204`;
+				try {
+					const { stdout } = await execAsync(cmd, { timeout: 10000 });
+					const httpCode = stdout.trim();
+					const ok = httpCode === '204' || httpCode === '200' || httpCode === '301' || httpCode === '302';
+					const marker = currentProxyType === protoKey ? ' ← Current' : '';
+					log(`  Result: HTTP ${httpCode} ${ok ? '✓ OK' : '✗ Failed'}${marker}`);
+				} catch {
+					const marker = currentProxyType === protoKey ? ' ← Current (⚠️ NOT WORKING)' : '';
+					log(`  Result: ✗ Failed${marker}`);
+				}
+			};
 
-			// Test HTTP proxy
-			log(`[Test 3] Testing HTTP proxy connectivity...`);
-			const httpCmd = `curl -x http://${proxyHost}:${proxyPort} https://www.google.com -s -o /dev/null -w "%{http_code}" --connect-timeout 10`;
-			log(`  Command: ${httpCmd}`);
-			let httpOk = false;
-			try {
-				const { stdout } = await execAsync(httpCmd, { timeout: 15000 });
-				const httpCode = stdout.trim();
-				httpOk = httpCode === '200' || httpCode === '301' || httpCode === '302';
-				const marker = currentProxyType === 'http' ? ' ← Current' : '';
-				log(`  Result: HTTP ${httpCode} ${httpOk ? '✓ OK' : '✗ Failed'}${marker}`);
-			} catch (error) {
-				const marker = currentProxyType === 'http' ? ' ← Current (⚠️ NOT WORKING)' : '';
-				log(`  Result: ✗ Failed${marker}`);
-			}
-			log('');
-
-			// Test SOCKS5 proxy
-			log(`[Test 4] Testing SOCKS5 proxy connectivity...`);
-			const socks5Cmd = `curl -x socks5://${proxyHost}:${proxyPort} https://www.google.com -s -o /dev/null -w "%{http_code}" --connect-timeout 10`;
-			log(`  Command: ${socks5Cmd}`);
-			let socks5Ok = false;
-			try {
-				const { stdout } = await execAsync(socks5Cmd, { timeout: 15000 });
-				const httpCode = stdout.trim();
-				socks5Ok = httpCode === '200' || httpCode === '301' || httpCode === '302';
-				const marker = currentProxyType === 'socks5' ? ' ← Current' : '';
-				log(`  Result: HTTP ${httpCode} ${socks5Ok ? '✓ OK' : '✗ Failed'}${marker}`);
-			} catch (error) {
-				const marker = currentProxyType === 'socks5' ? ' ← Current (⚠️ NOT WORKING)' : '';
-				log(`  Result: ✗ Failed${marker}`);
-			}
-			log('');
-
-			// Test SOCKS5H proxy (SOCKS5 with remote DNS resolution)
-			log(`[Test 5] Testing SOCKS5H proxy connectivity (remote DNS)...`);
-			const socks5hCmd = `curl -x socks5h://${proxyHost}:${proxyPort} https://www.google.com -s -o /dev/null -w "%{http_code}" --connect-timeout 10`;
-			log(`  Command: ${socks5hCmd}`);
-			try {
-				const { stdout } = await execAsync(socks5hCmd, { timeout: 15000 });
-				const httpCode = stdout.trim();
-				const socks5hOk = httpCode === '200' || httpCode === '301' || httpCode === '302';
-				log(`  Result: HTTP ${httpCode} ${socks5hOk ? '✓ OK' : '✗ Failed'}`);
-			} catch (error) {
-				log(`  Result: ✗ Failed`);
-			}
+			await testCurl('HTTP', `-x http://${proxyHost}:${proxyPort}`, 'http');
+			await testCurl('SOCKS5', `--socks5 ${proxyHost}:${proxyPort}`, 'socks5');
+			await testCurl('SOCKS5H (remote DNS)', `--socks5-hostname ${proxyHost}:${proxyPort}`, 'socks5h');
 			log('');
 		}
 
@@ -685,58 +823,38 @@ async function showStartupStatus(proxyHost: string, proxyPort: number): Promise<
 		let message: string;
 		let actions: string[] = [];
 
-		// Check LS process status - this is the authoritative check for whether proxy is actually working
-		// Note: proxyActive (isMgraftcpRunning) might be true due to stale processes,
-		// but lsProcess.isUsingProxy tells us if the CURRENT LS is actually using proxy
 		const lsProcessForDecision = await getLanguageServerProcess();
 		const lsActuallyUsingProxy = lsProcessForDecision?.isUsingProxy ?? false;
 		const lsIsPersistent = lsProcessForDecision?.isPersistent ?? false;
 		const lsNeedsRestart = lsProcessForDecision && lsIsPersistent && !lsActuallyUsingProxy;
 
-		if (proxyReachable && lsActuallyUsingProxy) {
-			// Everything is actually working - LS is using proxy
-			message = `✅ Proxy active (${proxyHost}:${proxyPort})`;
+		if (hasCriticalFdOrFakeDns) {
+			message = `⚠️ High FD/UDP usage detected (FDs=${udpHealth.maxBackendFdCount}, UDP=${udpPct}%).`;
+			actions = ['Auto Fix', 'Run Diagnostics', 'Dismiss'];
+		} else if (proxyReachable && lsActuallyUsingProxy) {
+			message = `✅ Proxy active (${proxyHost}:${proxyPort}, ${currentProxyMode})`;
 		} else if (proxyReachable && lsNeedsRestart) {
-			// LS is in persistent mode but not using proxy - this is the bug scenario
-			// Auto-fix by killing LS
-			log('Startup: Detected persistent_mode LS not using proxy, auto-fixing...');
-			
+			log('Startup: Detected persistent backend not using proxy, auto-fixing...');
 			const killed = await killLanguageServer();
 			if (killed) {
-				message = `🔄 Language Server restarted to enable proxy. Reloading...`;
+				message = `🔄 Antigravity backend restarted to enable proxy. Reloading...`;
 				actions = ['Reload Now'];
-				
-				// Auto-reload after a short delay
 				setTimeout(() => {
 					vscode.commands.executeCommand('workbench.action.reloadWindow');
 				}, 2000);
 			} else {
-				message = `⚠️ Proxy configured but Language Server needs manual restart.`;
-				actions = ['Kill & Reload', 'Dismiss'];
+				message = `⚠️ Proxy configured but backend needs restart.`;
+				actions = ['Auto Fix', 'Reload Now', 'Dismiss'];
 			}
-		} else if (proxyReachable && !proxyActive) {
-			// Proxy is reachable, mgraftcp not running, LS might not be started yet or needs reload
-			if (lsProcessForDecision && !lsActuallyUsingProxy) {
-				// LS is running but not using proxy (non-persistent mode)
-				message = `⚠️ Proxy configured but not active. Reload to enable.`;
-				actions = ['Reload Now', 'Dismiss'];
-			} else {
-				// LS not running yet, or other state
-				message = `⚠️ Proxy configured but not active. Reload to enable.`;
-				actions = ['Reload Now', 'Dismiss'];
-			}
-		} else if (!proxyReachable) {
-			// Proxy not reachable - likely SSH tunnel not established
-			// This can happen when user directly connects to remote via Antigravity's memory feature
+		} else if (proxyReachable) {
+			message = lsProcessForDecision && !lsActuallyUsingProxy
+				? `⚠️ Proxy configured but backend started before wrapper. Reload to enable.`
+				: `⚠️ Proxy configured (${currentProxyMode}). Reload if backend just initialized.`;
+			actions = ['Reload Now', 'Run Diagnostics', 'Dismiss'];
+		} else {
 			log('Proxy not reachable - SSH tunnel may not be established');
-			log('This can happen when connecting directly to remote without opening a local window first');
-
-			// Show a detailed warning with explanation
 			await showSSHTunnelNotEstablishedWarning(proxyHost, proxyPort);
 			return;
-		} else {
-			message = `⚠️ Proxy status unknown`;
-			actions = ['Run Diagnostics', 'Dismiss'];
 		}
 
 		log(`Startup status: ${message}`);
@@ -745,20 +863,12 @@ async function showStartupStatus(proxyHost: string, proxyPort: number): Promise<
 			const selection = await vscode.window.showInformationMessage(message, ...actions);
 			if (selection === 'Reload Now') {
 				vscode.commands.executeCommand('workbench.action.reloadWindow');
-			} else if (selection === 'Kill & Reload') {
-				// Kill LS and reload
-				await killLanguageServer();
-				setTimeout(() => {
-					vscode.commands.executeCommand('workbench.action.reloadWindow');
-				}, 1000);
+			} else if (selection === 'Auto Fix') {
+				await vscode.commands.executeCommand('antigravity-agy-proxy.autoFix');
 			} else if (selection === 'Run Diagnostics') {
-				vscode.commands.executeCommand('antigravity-ssh-proxy.diagnose');
-			} else if (selection === 'Close Remote') {
-				// Close remote connection and return to local window
-				vscode.commands.executeCommand('workbench.action.remote.close');
+				vscode.commands.executeCommand('antigravity-agy-proxy.diagnose');
 			}
 		} else {
-			// Just show a brief notification for success
 			vscode.window.showInformationMessage(message);
 		}
 	} catch (error) {
@@ -770,32 +880,27 @@ async function showStartupStatus(proxyHost: string, proxyPort: number): Promise<
  * Run setup script silently in background (idempotent)
  * @returns true if setup was successful or already configured
  */
-async function runSetupScriptSilently(proxyHost: string, proxyPort: number, proxyType: string, extensionPath: string): Promise<boolean> {
+async function runSetupScriptSilently(
+	proxyHost: string,
+	proxyPort: number,
+	proxyType: ProxyProtocol,
+	proxyMode: ProxyMode,
+	extensionPath: string
+): Promise<boolean> {
 	const scriptPath = path.join(extensionPath, 'scripts', 'setup-proxy.sh');
 
 	try {
-		// Ensure script is executable
 		await execAsync(`chmod +x "${scriptPath}"`);
+		const extensionVersion = await readExtensionVersion(extensionPath);
 
-		// Read extension version from package.json
-		const packageJsonPath = path.join(extensionPath, 'package.json');
-		let extensionVersion = 'unknown';
-		try {
-			const packageJsonContent = await fs.readFile(packageJsonPath, 'utf-8');
-			const packageJson = JSON.parse(packageJsonContent);
-			extensionVersion = packageJson.version || 'unknown';
-		} catch (e) {
-			log(`Failed to read package.json: ${e}`);
-		}
-
-		// Execute script directly with environment variables for proxy config
 		const env = {
 			...process.env,
 			PROXY_HOST: proxyHost,
 			PROXY_PORT: String(proxyPort),
 			PROXY_TYPE: proxyType,
-			EXTENSION_PATH: extensionPath,  // Current extension's exact path
-			EXTENSION_VERSION: extensionVersion  // Extension version for update detection
+			PROXY_MODE: proxyMode,
+			EXTENSION_PATH: extensionPath,
+			EXTENSION_VERSION: extensionVersion
 		};
 
 		const { stdout, stderr } = await execAsync(`bash "${scriptPath}" 2>&1`, { env });
@@ -803,28 +908,22 @@ async function runSetupScriptSilently(proxyHost: string, proxyPort: number, prox
 
 		log(`Setup output: ${output}`);
 
-		// Check if this is a new configuration
 		const isNewConfig = output.includes('Setup complete') ||
 			(output.includes('configured') && !output.includes('Already configured'));
 
 		if (isNewConfig) {
-			// New configuration or version update - need to restart LS
 			log('Setup: New configuration applied');
-			
-			// Check if LS is in persistent mode - if so, need to kill it first
-			// Otherwise the new wrapper won't take effect even after reload
 			const lsProcess = await getLanguageServerProcess();
 			if (lsProcess && lsProcess.isPersistent) {
-				log('Setup: LS is in persistent_mode, killing to apply new configuration');
+				log('Setup: Persistent backend detected, killing to apply new configuration');
 				const killed = await killLanguageServer();
 				if (killed) {
 					promptReloadWindow(
-						'Antigravity proxy updated. Language Server restarted. Please reload the window to reconnect.'
+						'Antigravity proxy updated. Backend restarted. Please reload the window to reconnect.'
 					);
 				} else {
 					vscode.window.showWarningMessage(
-						'Proxy updated but Language Server needs restart. ' +
-						'Run in terminal: kill $(pgrep -f language_server_linux) && then reload window.',
+						'Proxy updated but Antigravity backend needs restart. Please reload window.',
 						'Reload Now'
 					).then(selection => {
 						if (selection === 'Reload Now') {
@@ -833,40 +932,30 @@ async function runSetupScriptSilently(proxyHost: string, proxyPort: number, prox
 					});
 				}
 			} else {
-				// Non-persistent mode or LS not running - regular reload is fine
 				promptReloadWindow(
-					'Antigravity proxy configured. Reload window to apply changes to the language server.'
+					'Antigravity proxy configured. Reload window to apply changes.'
 				);
 			}
 			return true;
 		} else if (output.includes('Already configured')) {
 			log('Setup: Already configured');
 
-			// Check if Language Server is actually using the proxy
-			// Use getLanguageServerProcess() as the authoritative check, not just isMgraftcpRunning()
-			// because there might be stale mgraftcp processes
 			const lsProcess = await getLanguageServerProcess();
 			const lsActuallyUsingProxy = lsProcess?.isUsingProxy ?? false;
 			const lsIsPersistent = lsProcess?.isPersistent ?? false;
-			
+
 			if (lsProcess && !lsActuallyUsingProxy) {
-				// Wrapper is configured but LS isn't using proxy (started before wrapper was set up)
-				log('Setup: Proxy configured but LS not using it');
-				
+				log('Setup: Proxy configured but backend not using it');
 				if (lsIsPersistent) {
-					// Persistent mode: LS won't restart on reload, need to kill it first
-					log('Setup: Language Server is in persistent_mode, killing process to force restart through wrapper');
-					
+					log('Setup: Killing unwrapped persistent backend to force restart through wrapper');
 					const killed = await killLanguageServer();
 					if (killed) {
 						promptReloadWindow(
-							'Language Server was restarted to enable proxy. Please reload the window to reconnect.'
+							'Antigravity backend restarted to enable proxy. Please reload the window to reconnect.'
 						);
 					} else {
-						// Fallback to manual instructions
 						vscode.window.showWarningMessage(
-							'Proxy configured but Language Server needs restart. ' +
-							'Run in terminal: kill $(pgrep -f language_server_linux) && then reload window.',
+							'Proxy configured but backend needs restart. Please reload window.',
 							'Reload Now'
 						).then(selection => {
 							if (selection === 'Reload Now') {
@@ -875,17 +964,14 @@ async function runSetupScriptSilently(proxyHost: string, proxyPort: number, prox
 						});
 					}
 				} else {
-					// Non-persistent mode: regular reload should work
-					log('Setup: Prompting reload');
 					promptReloadWindow(
-						'Proxy is configured but not active. Reload window to enable proxy for the language server.'
+						'Proxy is configured but not active. Reload window to enable proxy.'
 					);
 				}
 			} else if (lsActuallyUsingProxy) {
 				log('Setup: Proxy is active, no reload needed');
 			} else {
-				// LS not running yet - this is fine, it will start with proxy when needed
-				log('Setup: LS not running, will use proxy when started');
+				log('Setup: Backend not running yet, will start with wrapper when needed');
 			}
 			return true;
 		}

@@ -30,13 +30,13 @@ jobs:
         run: echo "VERSION=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
 
       - name: Package Extension
-        run: npx -y @vscode/vsce package --out antigravity-ssh-proxy-${{ steps.version.outputs.VERSION }}.vsix
+        run: npx -y @vscode/vsce package --out antigravity-agy-proxy-${{ steps.version.outputs.VERSION }}.vsix
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/')
         with:
-          name: Antigravity SSH Proxy ${{ github.ref_name }}
+          name: Antigravity AGY Proxy ${{ github.ref_name }}
           draft: false
-          files: antigravity-ssh-proxy-${{ steps.version.outputs.VERSION }}.vsix
+          files: antigravity-agy-proxy-${{ steps.version.outputs.VERSION }}.vsix
           generate_release_notes: true

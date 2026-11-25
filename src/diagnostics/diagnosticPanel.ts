@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { runDiagnostics, DiagnosticReport, generateReportText } from './diagnosticRunner';
+import { runAllDiagnostics, DiagnosticReport, generateReportText } from './diagnosticRunner';
 
 /**
  * DiagnosticPanel - Wrapper for backwards compatibility
@@ -18,14 +18,25 @@ export class DiagnosticPanel {
      */
     async show(): Promise<void> {
         // Redirect to the main unified status panel
-        await vscode.commands.executeCommand('antigravity-ssh-proxy.showStatusPanel');
+        await vscode.commands.executeCommand('antigravity-agy-proxy.showStatusPanel');
     }
 
     /**
      * Run diagnostics and return report
      */
     async runDiagnostics(): Promise<DiagnosticReport> {
-        return await runDiagnostics();
+        const config = vscode.workspace.getConfiguration('antigravity-agy-proxy');
+        return await runAllDiagnostics(
+            Boolean(vscode.env.remoteName),
+            config.get<boolean>('enableLocalForwarding', true),
+            config.get<number>('localProxyPort', 7890),
+            config.get<string>('remoteProxyHost', '127.0.0.1'),
+            config.get<number>('remoteProxyPort', 7890),
+            config.get<string>('proxyType', 'http'),
+            config.get<string>('proxyMode', 'mgraftcp-no-fakedns'),
+            this.context.extensionUri.fsPath,
+            config.get<number>('fdGuardThreshold', 10000)
+        );
     }
 
     /**

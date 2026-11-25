@@ -49,8 +49,8 @@
 
 ### 📌 必需日志信息
 
-#### 1️⃣ ATP 诊断信息
-- 打开 **左下角的ATP 页面(远程)**
+#### 1️⃣ AGY Proxy 诊断信息
+- 打开 **左下角的 AGY Proxy 页面(远程)**
 - 运行 **诊断(Diagnose)**
 - 复制并附上完整诊断结果
 
@@ -62,7 +62,7 @@
 | 日志频道 | 查看路径 |
 |--------|---------|
 | Antigravity | Output 面板 → Antigravity |
-| Antigravity SSH Proxy | Output 面板 → Antigravity SSH Proxy |
+| Antigravity AGY Proxy | Output 面板 → Antigravity AGY Proxy |
 
 请完整复制相关日志内容。
 

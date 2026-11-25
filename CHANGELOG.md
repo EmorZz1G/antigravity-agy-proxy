@@ -1,6 +1,32 @@
 # Change Log
 
-All notable changes to the "Antigravity SSH Proxy" extension will be documented in this file.
+All notable changes to the "Antigravity AGY Proxy" extension will be documented in this file.
+
+## [0.1.0] - 2026-11-25
+
+> **Standalone Origin**: First independent release of **Antigravity AGY Proxy (`antigravity-agy-proxy`)** by EmorZz1G, independently enhanced and refactored based on `dinobot22/antigravity-ssh-proxy` (`0.0.17` / `0.0.19` `agy` support) and `mgraftcp`.
+
+### Added
+
+- **Independent Package & Identifier Migration**: Renamed extension ID, configuration keys, commands, markers, and release workflows from `antigravity-ssh-proxy` to `antigravity-agy-proxy` (`EmorZz1G`), with seamless upgrade recognition for legacy `ANTIGRAVITY_SSH_PROXY_WRAPPER` wrappers and `ANTIGRAVITY_SSH_PROXY_FD_GUARD` crontab rules.
+- **Three Proxy Strategies (`antigravity-agy-proxy.proxyMode`)**:
+  - `mgraftcp-no-fakedns` (new default): Uses `mgraftcp-fakedns --disable-fakedns` plus proxy environment variables so TCP `ptrace` interception works without FakeDNS UDP `:0` ephemeral port or FD leaks.
+  - `env-only`: Pure `HTTP_PROXY` / `HTTPS_PROXY` / `ALL_PROXY` / `NO_PROXY` wrapper mode without `mgraftcp` / `ptrace` / FakeDNS overhead.
+  - `mgraftcp-fakedns`: Traditional FakeDNS + `GODEBUG=netdns=cgo` mode for DNS-polluted servers.
+- **SOCKS5H Protocol Support**: Added `socks5h` alongside `http` and `socks5` across settings, wrapper generation, startup checks, and external connectivity diagnostics.
+- **Rootless Crontab FD Guard (`src/fdGuard.ts`)**: Configurable cron guard (`enableFdGuard`, `fdGuardIntervalMinutes`, `fdGuardThreshold`, and `Install / Remove FD Guard (Cron)` command) monitoring `/proc/$pid/fd` counts for both `agy.bak` and legacy `language_server_linux*.bak`, logging kills to `$HOME/agy_guard.log`.
+- **Refactored 9-Point Diagnostics & Auto Fix (`antigravity-agy-proxy.autoFix`)**:
+  - Added `ls-process`, `fd-udp-health` (`/proc/<pid>/fd`, `/proc/net/udp{,6}` vs `ip_local_port_range`, log error scan, FD guard status), and `dns-resolution` checks.
+  - Added automated troubleshooting to kill leaking/duplicate/orphan processes, mitigate FakeDNS crashes by switching to `mgraftcp-no-fakedns` / `env-only`, auto-switch failing protocols, enable FD Guard, and re-sync wrappers.
+- **SSH Keepalive Hardening**: Added `ServerAliveInterval 30` and `ServerAliveCountMax 3` to generated `~/.ssh/config.antigravity`.
+- **Full `agy` v2.6.0+ & Legacy Compatibility**: Supports `~/.gemini/bin/agy` (`agy --hub`, `--version` bypass, `agy.bak` rollback) while maintaining full backward compatibility with `.antigravity-ide-server` and `.antigravity-server` `language_server_linux_*`.
+
+### Fixed
+
+- Fixed `remoteSetup.ts` `generateSetupScript` substitution for `__PROXY_TYPE__` and `__PROXY_MODE__`.
+- Fixed unified status panel missing `ls-process` display mapping and added controls for `proxyMode`, `socks5h`, FD Guard settings, and one-click `Auto Fix`.
+
+### Historical Predecessor Releases (`dinobot22/antigravity-ssh-proxy`)
 
 ## [0.0.17] - 2026-05-25
 
