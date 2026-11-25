@@ -2,6 +2,14 @@
 
 All notable changes to the "Antigravity AGY Proxy" extension will be documented in this file.
 
+## [0.1.2] - 2026-11-25
+
+### Changed & Added
+
+- **Concise Bilingual README & Modular Docs (`docs/`)**: Refactored `README.md` into a streamlined bilingual portal with marketplace badges, quick-start guide, and links to modular English & Chinese docs in `docs/`.
+- **GitHub Pages Website (`site/`)**: Added a zero-build SaaS landing page (`https://emorzz1g.github.io/antigravity-agy-proxy/`) with automatic EN/ZH switching, theme toggle, interactive status/diagnostic preview, and compatibility matrix, deployed via `.github/workflows/pages.yml`.
+- **Marketplace Metadata & Trusted Publishing**: Added `homepage`, `bugs`, and `keywords` in `package.json`, excluded `docs/` and `site/` from `.vsix` packaging, and added VS Code Marketplace OIDC Trusted Publishing (`--oidc`) to `.github/workflows/release.yml`.
+
 ## [0.1.1] - 2026-11-25
 
 ### Changed & Fixed

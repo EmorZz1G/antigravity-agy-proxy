@@ -10,6 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      id-token: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -30,7 +31,7 @@ jobs:
         run: echo "VERSION=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
 
       - name: Package Extension
-        run: npx -y @vscode/vsce package --out antigravity-agy-proxy-${{ steps.version.outputs.VERSION }}.vsix
+        run: npx -y @vscode/vsce@^4.1.1 package --out antigravity-agy-proxy-${{ steps.version.outputs.VERSION }}.vsix
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
@@ -40,6 +41,9 @@ jobs:
           draft: false
           files: antigravity-agy-proxy-${{ steps.version.outputs.VERSION }}.vsix
           generate_release_notes: true
+
+      - name: Publish to VS Code Marketplace (Trusted Publishing / OIDC)
+        run: npx -y @vscode/vsce@^4.1.1 publish --oidc --packagePath antigravity-agy-proxy-${{ steps.version.outputs.VERSION }}.vsix
 
       - name: Publish to Open VSX
         if: ${{ secrets.OVSX_PAT != '' }}

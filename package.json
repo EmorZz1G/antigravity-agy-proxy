@@ -5,11 +5,26 @@
   "description": "Independent enhanced proxy & resilience extension for Antigravity IDE Remote-SSH (v2.6.0+ agy & legacy language servers), featuring UDP/FD leak prevention, SSH keepalive, crontab FD guard, and auto-troubleshooting.",
   "icon": "resources/icon.png",
   "license": "MIT",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "repository": {
     "type": "git",
     "url": "https://github.com/EmorZz1G/antigravity-agy-proxy"
   },
+  "homepage": "https://emorzz1g.github.io/antigravity-agy-proxy/",
+  "bugs": {
+    "url": "https://github.com/EmorZz1G/antigravity-agy-proxy/issues"
+  },
+  "keywords": [
+    "antigravity",
+    "agy",
+    "remote-ssh",
+    "proxy",
+    "ssh-tunnel",
+    "fakedns",
+    "socks5h",
+    "clash",
+    "mgraftcp"
+  ],
   "engines": {
     "vscode": "^1.100.0"
   },

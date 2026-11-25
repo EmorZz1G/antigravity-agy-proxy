@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Antigravity AGY Proxy — Remote-SSH Proxy & Stability Extension</title>
+  <meta name="description" content="Zero-leak Remote-SSH proxy, SSH keepalive, rootless Crontab FD Guard, and 9-point auto-healing toolkit for Antigravity IDE (v2.6.0+ agy & legacy servers). Available on Open VSX & VS Code Marketplace." />
+  <meta name="keywords" content="Antigravity IDE, agy, Remote-SSH, proxy, FakeDNS, FD leak, mgraftcp, Clash, socks5h, Open VSX, VS Code Marketplace" />
+  <meta property="og:title" content="Antigravity AGY Proxy" />
+  <meta property="og:description" content="Remote-SSH proxy & resilience extension for Antigravity IDE v2.6.0+ (agy) and legacy servers." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://emorzz1g.github.io/antigravity-agy-proxy/" />
+  <meta property="og:image" content="https://emorzz1g.github.io/antigravity-agy-proxy/assets/banner.png" />
+  <link rel="icon" type="image/png" href="./assets/icon.png" />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <!-- Sticky Top Navigation -->
+  <header class="navbar">
+    <div class="container nav-inner">
+      <a href="#top" class="brand">
+        <svg class="brand-logo" viewBox="0 0 64 64" fill="none" aria-hidden="true">
+          <defs>
+            <linearGradient id="agyHexGrad" x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stop-color="#38bdf8" />
+              <stop offset="55%" stop-color="#34d399" />
+              <stop offset="100%" stop-color="#818cf8" />
+            </linearGradient>
+          </defs>
+          <rect width="64" height="64" rx="16" fill="#0f172a" />
+          <polygon points="32,8 53,20 53,44 32,56 11,44 11,20" stroke="url(#agyHexGrad)" stroke-width="3.2" fill="none" />
+          <text x="32" y="38" text-anchor="middle" fill="#f8fafc" font-family="system-ui, -apple-system, sans-serif" font-size="16" font-weight="800" letter-spacing="1">AGY</text>
+        </svg>
+        <span class="brand-name">Antigravity AGY Proxy</span>
+      </a>
+
+      <nav class="nav-links" aria-label="Primary Navigation">
+        <a href="#features" data-i18n="nav.features">核心特性</a>
+        <a href="#install" data-i18n="nav.install">快速安装</a>
+        <a href="#modes" data-i18n="nav.modes">代理策略</a>
+        <a href="#compatibility" data-i18n="nav.compatibility">兼容矩阵</a>
+        <a href="#docs" data-i18n="nav.docs">文档中心</a>
+      </nav>
+
+      <div class="nav-actions">
+        <button id="lang-toggle" class="icon-btn" type="button" aria-label="Switch Language">EN</button>
+        <button id="theme-toggle" class="icon-btn" type="button" aria-label="Toggle Color Theme">
+          <span class="theme-icon-sun" aria-hidden="true">☀</span>
+          <span class="theme-icon-moon" aria-hidden="true">☾</span>
+        </button>
+        <a class="btn btn-sm btn-primary" href="https://open-vsx.org/extension/EmorZz1G/antigravity-agy-proxy" target="_blank" rel="noopener noreferrer" data-i18n="nav.getExt">获取扩展</a>
+      </div>
+    </div>
+  </header>
+
+  <main id="top">
+    <!-- Hero Section -->
+    <section class="hero">
+      <div class="container hero-grid">
+        <div class="hero-copy">
+          <div class="eyebrow">
+            <span class="dot-live"></span>
+            <span data-i18n="hero.badge">v0.1.2 · 已上架 Open VSX 与 VS Code Marketplace</span>
+          </div>
+
+          <h1 class="hero-title" data-i18n="hero.title">
+            让 Antigravity Remote-SSH 代理<br /><span class="gradient-text">零泄漏、不掉线、可自愈</span>
+          </h1>
+
+          <p class="hero-desc" data-i18n="hero.desc">
+            专为 Antigravity IDE（全面兼容 v2.6.0+ <code>agy --hub</code> 与旧版 <code>language_server</code>）打造的增强型代理扩展。消除 FakeDNS UDP 句柄泄漏导致的服务器断连，自带 SSH 保活、无 Root FD 守护与 9 项一键排错。
+          </p>
+
+          <div class="hero-ctas">
+            <a class="btn btn-primary" href="https://open-vsx.org/extension/EmorZz1G/antigravity-agy-proxy" target="_blank" rel="noopener noreferrer">
+              <span data-i18n="hero.ctaOpenVsx">从 Open VSX 安装</span>
+              <span class="btn-sub" data-i18n="hero.ctaOpenVsxSub">Antigravity 推荐</span>
+            </a>
+            <a class="btn btn-secondary" href="https://marketplace.visualstudio.com/items?itemName=EmorZz1G.antigravity-agy-proxy" target="_blank" rel="noopener noreferrer" data-i18n="hero.ctaMarketplace">
+              VS Code Marketplace
+            </a>
+            <a class="btn btn-ghost" href="https://github.com/EmorZz1G/antigravity-agy-proxy" target="_blank" rel="noopener noreferrer">
+              GitHub ↗
+            </a>
+          </div>
+
+          <div class="copy-id-bar">
+            <span class="copy-label" data-i18n="hero.extIdLabel">扩展 ID：</span>
+            <code id="ext-id-code">EmorZz1G.antigravity-agy-proxy</code>
+            <button id="copy-ext-id" class="copy-btn" type="button" data-i18n="common.copy">复制</button>
+          </div>
+        </div>
+
+        <!-- Interactive High-Fidelity Preview Card -->
+        <div class="hero-preview">
+          <div class="panel-mock">
+            <div class="panel-mock-header">
+              <div class="window-dots" aria-hidden="true">
+                <span></span><span></span><span></span>
+              </div>
+              <div class="panel-title">AGY Proxy · Remote Status Panel</div>
+              <span class="status-pill status-ok">
+                <span class="pulse-dot"></span>
+                <span data-i18n="mock.connected">已连接</span>
+              </span>
+            </div>
+
+            <div class="panel-tabs" role="tablist">
+              <button class="panel-tab active" data-tab="status" type="button" role="tab" aria-selected="true" data-i18n="mock.tabStatus">状态与策略</button>
+              <button class="panel-tab" data-tab="diagnostics" type="button" role="tab" aria-selected="false" data-i18n="mock.tabDiag">9 项全链路诊断</button>
+            </div>
+
+            <!-- Tab 1: Status & Config -->
+            <div class="panel-body active" id="tab-status">
+              <div class="mock-kv-grid">
+                <div class="mock-kv">
+                  <span class="kv-label" data-i18n="mock.backend">远程后端</span>
+                  <span class="kv-val mono">~/.gemini/bin/agy <span class="badge-mini">v2.6+</span></span>
+                </div>
+                <div class="mock-kv">
+                  <span class="kv-label" data-i18n="mock.tunnel">SSH 隧道转发</span>
+                  <span class="kv-val mono">127.0.0.1:7890 ⇄ :7890</span>
+                </div>
+                <div class="mock-kv">
+                  <span class="kv-label" data-i18n="mock.protocol">代理协议</span>
+                  <span class="kv-val">
+                    <span class="chip-group" id="mock-proto-group">
+                      <button type="button" class="chip active" data-proto="http">http</button>
+                      <button type="button" class="chip" data-proto="socks5">socks5</button>
+                      <button type="button" class="chip" data-proto="socks5h">socks5h</button>
+                    </span>
+                  </span>
+                </div>
+                <div class="mock-kv">
+                  <span class="kv-label" data-i18n="mock.strategy">拦截模式</span>
+                  <span class="kv-val">
+                    <span class="chip-group" id="mock-mode-group">
+                      <button type="button" class="chip active" data-mode="mgraftcp-no-fakedns">no-fakedns</button>
+                      <button type="button" class="chip" data-mode="env-only">env-only</button>
+                      <button type="button" class="chip" data-mode="mgraftcp-fakedns">fakedns</button>
+                    </span>
+                  </span>
+                </div>
+              </div>
+
+              <div class="mock-telemetry">
+                <div class="telemetry-item">
+                  <span class="tel-label" data-i18n="mock.openFds">进程 Open FDs</span>
+                  <span class="tel-val ok-text" id="mock-fd-val">142 / 10000</span>
+                </div>
+                <div class="telemetry-item">
+                  <span class="tel-label" data-i18n="mock.udpUsage">UDP 端口占用</span>
+                  <span class="tel-val ok-text" id="mock-udp-val">0.4% (无泄漏)</span>
+                </div>
+                <div class="telemetry-item">
+                  <span class="tel-label" data-i18n="mock.keepalive">SSH 保活</span>
+                  <span class="tel-val">30s × 3</span>
+                </div>
+              </div>
+
+              <div class="mock-mode-note" id="mock-mode-note" data-i18n="mock.noteNoFakedns">
+                当前采用 <code>mgraftcp-no-fakedns</code>：保留 TCP 透明代理能力，彻底关闭 FakeDNS UDP :0 绑定，长连接不泄漏句柄。
+              </div>
+            </div>
+
+            <!-- Tab 2: 9-Point Diagnostics -->
+            <div class="panel-body" id="tab-diagnostics">
+              <div class="diag-list" id="diag-list">
+                <div class="diag-item"><span class="diag-dot pass"></span><span class="diag-name" data-i18n="diag.1">1. 本地代理服务 (local-proxy)</span><span class="diag-tag pass">OK</span></div>
+                <div class="diag-item"><span class="diag-dot pass"></span><span class="diag-name" data-i18n="diag.2">2. SSH 配置与保活 (ssh-config)</span><span class="diag-tag pass">OK</span></div>
+                <div class="diag-item"><span class="diag-dot pass"></span><span class="diag-name" data-i18n="diag.3">3. 远程端口转发 (remote-forward)</span><span class="diag-tag pass">OK</span></div>
+                <div class="diag-item"><span class="diag-dot pass"></span><span class="diag-name">4. mgraftcp-fakedns</span><span class="diag-tag pass">OK</span></div>
+                <div class="diag-item"><span class="diag-dot pass"></span><span class="diag-name" data-i18n="diag.5">5. 后端包装 (ls-wrapper)</span><span class="diag-tag pass">OK</span></div>
+                <div class="diag-item"><span class="diag-dot pass"></span><span class="diag-name" data-i18n="diag.6">6. 后端进程 (ls-process)</span><span class="diag-tag pass">OK</span></div>
+                <div class="diag-item" id="diag-fd-row"><span class="diag-dot pass"></span><span class="diag-name" data-i18n="diag.7">7. FD 与 UDP 健康 (fd-udp-health)</span><span class="diag-tag pass" id="diag-fd-tag">OK</span></div>
+                <div class="diag-item"><span class="diag-dot pass"></span><span class="diag-name" data-i18n="diag.8">8. DNS 解析健康 (dns-resolution)</span><span class="diag-tag pass">OK</span></div>
+                <div class="diag-item"><span class="diag-dot pass"></span><span class="diag-name" data-i18n="diag.9">9. 外部连接 (external-connectivity)</span><span class="diag-tag pass">OK</span></div>
+              </div>
+              <div class="diag-footer">
+                <button id="simulate-leak-btn" class="btn-mini" type="button" data-i18n="mock.simLeak">模拟 FakeDNS 泄漏</button>
+                <button id="simulate-fix-btn" class="btn-mini btn-mini-primary" type="button" data-i18n="mock.autoFix">⚡ 一键 Auto Fix</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Pain Points vs Solutions -->
+    <section class="section section-alt" id="features">
+      <div class="container">
+        <div class="section-head">
+          <span class="section-eyebrow" data-i18n="features.eyebrow">为什么需要独立增强版</span>
+          <h2 data-i18n="features.title">直击 Remote-SSH 代理的三大真实痛点</h2>
+          <p data-i18n="features.subtitle">在原有代理方案基础上全面重构，专为高并发、长连接与 Antigravity v2.6.0+ 打造。</p>
+        </div>
+
+        <div class="cards-3">
+          <article class="card">
+            <div class="card-icon icon-cyan">🛡️</div>
+            <h3 data-i18n="features.c1Title">根治 FakeDNS UDP 句柄泄漏</h3>
+            <p data-i18n="features.c1Desc">
+              传统 FakeDNS 模式长期运行易产生大量 UDP <code>:0</code> 套接字泄漏，耗尽临时端口并拖垮 SSH。默认启用 <code>mgraftcp-no-fakedns</code>，并提供无 Root Crontab FD Guard 兜底。
+            </p>
+          </article>
+
+          <article class="card">
+            <div class="card-icon icon-emerald">🔄</div>
+            <h3 data-i18n="features.c2Title">v2.6.0+ agy 与旧版无缝兼容</h3>
+            <p data-i18n="features.c2Desc">
+              自动包装 <code>~/.gemini/bin/agy</code>（<code>--version</code> 零延迟直通、原子保留 <code>agy.bak</code>），同时兼容旧版 <code>language_server_linux_*</code> 及历史包装脚本无感升级。
+            </p>
+          </article>
+
+          <article class="card">
+            <div class="card-icon icon-indigo">⚡</div>
+            <h3 data-i18n="features.c3Title">SSH 保活与 9 项一键排错</h3>
+            <p data-i18n="features.c3Desc">
+              自动写入 <code>ServerAliveInterval 30</code> 清理僵尸隧道；状态面板集成 9 项端到端诊断，支持精准清理 <code>PPID=1</code> 孤儿进程并自动切换可用协议。
+            </p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3-Step Quick Install & Setup -->
+    <section class="section" id="install">
+      <div class="container">
+        <div class="section-head">
+          <span class="section-eyebrow" data-i18n="install.eyebrow">3 分钟快速开始</span>
+          <h2 data-i18n="install.title">三步完成安装与配置</h2>
+          <p data-i18n="install.subtitle">无需在远程服务器上安装 root 依赖，本地和远程均开箱即用。</p>
+        </div>
+
+        <div class="steps-grid">
+          <div class="step-card">
+            <div class="step-num">01</div>
+            <h3 data-i18n="install.s1Title">安装扩展并启动本地窗口</h3>
+            <p data-i18n="install.s1Desc">
+              在 Antigravity IDE 扩展市场搜索 <code>EmorZz1G.antigravity-agy-proxy</code> 安装。先启动本地 Clash / V2Ray（默认端口 <code>7890</code>），再打开一个<strong>本地窗口</strong>，等待左下角 <code>AGY Proxy</code> 变绿。
+            </p>
+          </div>
+
+          <div class="step-card">
+            <div class="step-num">02</div>
+            <h3 data-i18n="install.s2Title">以新窗口连接远程服务器</h3>
+            <p data-i18n="install.s2Desc">
+              从本地窗口选择 <strong>Connect SSH Host in New Window</strong> 连接远端主机。扩展会自动配置 <code>~/.ssh/config.antigravity</code> 反向端口转发，并包装远程 <code>agy</code> / <code>language_server</code>。
+            </p>
+          </div>
+
+          <div class="step-card">
+            <div class="step-num">03</div>
+            <h3 data-i18n="install.s3Title">面板调优与一键排错</h3>
+            <p data-i18n="install.s3Desc">
+              点击左下角 <code>AGY Proxy</code> 打开统一面板：随时切换 <code>http / socks5 / socks5h</code>、调整拦截模式、查看流量监控、开关 Crontab FD Guard，或运行 9 项诊断与 <strong>Auto Fix</strong>。
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Strategy Comparison -->
+    <section class="section section-alt" id="modes">
+      <div class="container">
+        <div class="section-head">
+          <span class="section-eyebrow" data-i18n="modes.eyebrow">按环境选择最佳策略</span>
+          <h2 data-i18n="modes.title">三种代理拦截模式对比</h2>
+          <p data-i18n="modes.subtitle">支持在状态面板或设置项 <code>antigravity-agy-proxy.proxyMode</code> 中随时切换。</p>
+        </div>
+
+        <div class="cards-3">
+          <div class="card mode-card mode-recommended">
+            <div class="mode-badge" data-i18n="modes.recommended">默认 · 推荐</div>
+            <h3 class="mono">mgraftcp-no-fakedns</h3>
+            <p class="mode-mech" data-i18n="modes.m1Mech">TCP ptrace 透明拦截（禁用 FakeDNS）+ 标准代理环境变量</p>
+            <ul class="mode-list">
+              <li data-i18n="modes.m1P1">接管不读取环境变量的子进程</li>
+              <li data-i18n="modes.m1P2">彻底消除 FakeDNS UDP :0 句柄泄漏</li>
+              <li data-i18n="modes.m1P3">搭配 <code>http</code> 或 <code>socks5h</code> 稳定性最佳</li>
+            </ul>
+          </div>
+
+          <div class="card mode-card">
+            <div class="mode-badge badge-neutral" data-i18n="modes.zeroOverhead">零 ptrace 开销</div>
+            <h3 class="mono">env-only</h3>
+            <p class="mode-mech" data-i18n="modes.m2Mech">纯环境变量注入（HTTP_PROXY / HTTPS_PROXY / ALL_PROXY）</p>
+            <ul class="mode-list">
+              <li data-i18n="modes.m2P1">无 ptrace 性能开销，无 UDP 风险</li>
+              <li data-i18n="modes.m2P2">兼容限制 ptrace 的 Docker / 容器环境</li>
+              <li data-i18n="modes.m2P3">推荐配合 <code>http</code> 或 <code>socks5h</code> 使用</li>
+            </ul>
+          </div>
+
+          <div class="card mode-card">
+            <div class="mode-badge badge-warn" data-i18n="modes.dnsFallback">DNS 污染专用</div>
+            <h3 class="mono">mgraftcp-fakedns</h3>
+            <p class="mode-mech" data-i18n="modes.m3Mech">TCP ptrace + libdnsredir FakeDNS + GODEBUG=netdns=cgo</p>
+            <ul class="mode-list">
+              <li data-i18n="modes.m3P1">解决远端本地 DNS 污染导致的证书错误</li>
+              <li data-i18n="modes.m3P2">仅建议在直连解析失败时开启</li>
+              <li data-i18n="modes.m3P3">建议同时开启 Crontab FD Guard 防护</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Compatibility Matrix -->
+    <section class="section" id="compatibility">
+      <div class="container">
+        <div class="section-head">
+          <span class="section-eyebrow" data-i18n="compat.eyebrow">版本与环境支持</span>
+          <h2 data-i18n="compat.title">全版本兼容矩阵</h2>
+          <p data-i18n="compat.subtitle">覆盖最新 Antigravity IDE、历史版本与多架构 Linux 远程主机。</p>
+        </div>
+
+        <div class="table-wrap">
+          <table class="compat-table">
+            <thead>
+              <tr>
+                <th data-i18n="compat.colDim">兼容维度</th>
+                <th data-i18n="compat.colTarget">支持目标</th>
+                <th data-i18n="compat.colDetail">说明与特性</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td data-i18n="compat.r1Dim">Antigravity v2.6.0+</td>
+                <td><code>~/.gemini/bin/agy</code></td>
+                <td data-i18n="compat.r1Desc">原生支持 <code>agy --hub</code>，保留 <code>agy.bak</code> 原子备份，<code>--version</code> / <code>-v</code> 零延迟直通</td>
+              </tr>
+              <tr>
+                <td data-i18n="compat.r2Dim">旧版后端 (pre-v2.6.0)</td>
+                <td><code>language_server_linux_*</code></td>
+                <td data-i18n="compat.r2Desc">兼容 <code>~/.antigravity-ide-server</code> 与 <code>~/.antigravity-server</code>，支持 <code>--persistent_mode</code> 进程检测</td>
+              </tr>
+              <tr>
+                <td data-i18n="compat.r3Dim">历史插件迁移</td>
+                <td><code>antigravity-ssh-proxy</code></td>
+                <td data-i18n="compat.r3Desc">自动识别旧版 <code>ANTIGRAVITY_SSH_PROXY_WRAPPER</code> 与 cron 规则，保留原 <code>.bak</code> 无痛升级</td>
+              </tr>
+              <tr>
+                <td data-i18n="compat.r4Dim">服务器 CPU 架构</td>
+                <td><code>x86_64</code> · <code>arm64</code></td>
+                <td data-i18n="compat.r4Desc">内置双架构 <code>mgraftcp-fakedns</code> 与 <code>libdnsredir</code> 二进制；受限容器可选 <code>env-only</code></td>
+              </tr>
+              <tr>
+                <td data-i18n="compat.r5Dim">代理协议</td>
+                <td><code>http</code> · <code>socks5</code> · <code>socks5h</code></td>
+                <td data-i18n="compat.r5Desc">9 项诊断自动并行测速，支持 <code>socks5h</code> 远端代理 DNS 解析</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- Docs Hub -->
+    <section class="section section-alt" id="docs">
+      <div class="container">
+        <div class="section-head">
+          <span class="section-eyebrow" data-i18n="docs.eyebrow">源文档索引</span>
+          <h2 data-i18n="docs.title">深入了解技术细节与排错指南</h2>
+          <p data-i18n="docs.subtitle">所有技术文档均按主题归档在仓库 <code>docs/</code> 目录中，提供中英双语对照。</p>
+        </div>
+
+        <div class="docs-grid">
+          <a class="doc-card" data-doc-base="architecture-and-modes" href="https://github.com/EmorZz1G/antigravity-agy-proxy/blob/main/docs/architecture-and-modes.zh-CN.md" target="_blank" rel="noopener noreferrer">
+            <h3 data-i18n="docs.d1Title">架构原理与代理模式 ↗</h3>
+            <p data-i18n="docs.d1Desc">SSH 隧道保活、agy 包装机制、三种拦截策略与 Crontab FD Guard 原理。</p>
+          </a>
+          <a class="doc-card" data-doc-base="configuration-and-commands" href="https://github.com/EmorZz1G/antigravity-agy-proxy/blob/main/docs/configuration-and-commands.zh-CN.md" target="_blank" rel="noopener noreferrer">
+            <h3 data-i18n="docs.d2Title">配置项与命令全表 ↗</h3>
+            <p data-i18n="docs.d2Desc">所有 <code>antigravity-agy-proxy.*</code> 设置项默认值及命令面板操作指令。</p>
+          </a>
+          <a class="doc-card" data-doc-base="diagnostics-and-autofix" href="https://github.com/EmorZz1G/antigravity-agy-proxy/blob/main/docs/diagnostics-and-autofix.zh-CN.md" target="_blank" rel="noopener noreferrer">
+            <h3 data-i18n="docs.d3Title">9 项诊断与 Auto Fix ↗</h3>
+            <p data-i18n="docs.d3Desc">全链路检查逻辑、UDP/FD 监控指标与一键排错自动修复流程。</p>
+          </a>
+          <a class="doc-card" data-doc-base="troubleshooting" href="https://github.com/EmorZz1G/antigravity-agy-proxy/blob/main/docs/troubleshooting.zh-CN.md" target="_blank" rel="noopener noreferrer">
+            <h3 data-i18n="docs.d4Title">故障排查与 Issue 指南 ↗</h3>
+            <p data-i18n="docs.d4Desc">DNS 污染、Docker ptrace 限制、常见连接异常与日志收集清单。</p>
+          </a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="container footer-inner">
+      <div>
+        <strong>Antigravity AGY Proxy</strong> · <span data-i18n="footer.license">基于 MIT 协议开源</span>
+        <div class="footer-sub" data-i18n="footer.ack">基于 dinobot22/antigravity-ssh-proxy 与 mgraftcp 独立增强重构</div>
+      </div>
+      <div class="footer-links">
+        <a href="https://open-vsx.org/extension/EmorZz1G/antigravity-agy-proxy" target="_blank" rel="noopener noreferrer">Open VSX</a>
+        <a href="https://marketplace.visualstudio.com/items?itemName=EmorZz1G.antigravity-agy-proxy" target="_blank" rel="noopener noreferrer">VS Code Marketplace</a>
+        <a href="https://github.com/EmorZz1G/antigravity-agy-proxy/releases" target="_blank" rel="noopener noreferrer">Releases</a>
+        <a href="https://github.com/EmorZz1G/antigravity-agy-proxy" target="_blank" rel="noopener noreferrer">GitHub</a>
+      </div>
+    </div>
+  </footer>
+
+  <script src="./app.js"></script>
+</body>
+</html>
+
