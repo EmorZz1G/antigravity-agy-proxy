@@ -138,6 +138,26 @@ describe('Antigravity AGY Proxy Core Modules', function () {
             const out2 = execSync(`bash "${scriptPath}"`, { env: baseEnv, encoding: 'utf8' });
             assert.ok(out2.includes('Already configured'), out2);
 
+            // 2b. Switch to mgraftcp-no-fakedns + socks5 and confirm runtime wrapper avoids setting HTTP_PROXY/HTTPS_PROXY=socks5://
+            const outSocks = execSync(`bash "${scriptPath}"`, {
+                env: { ...baseEnv, PROXY_TYPE: 'socks5', PROXY_MODE: 'mgraftcp-no-fakedns' },
+                encoding: 'utf8'
+            });
+            assert.ok(outSocks.includes('Configured: 2 wrapper(s)'), outSocks);
+            const envCheckCmd = `bash -c 'unset HTTP_PROXY HTTPS_PROXY ALL_PROXY; eval "$(sed -n "/^PROXY_ADDR=/,/^# Strategy 1/p" "${agyBin}")"; echo "HTTP=\${HTTP_PROXY:-unset} HTTPS=\${HTTPS_PROXY:-unset} ALL=\${ALL_PROXY:-unset}"'`;
+            const envCheckOut = execSync(envCheckCmd, { encoding: 'utf8' }).trim();
+            assert.strictEqual(envCheckOut, 'HTTP=unset HTTPS=unset ALL=socks5://127.0.0.1:7890');
+
+            // Verify Chinese diagnostic report localization
+            const zhReport = generateReportText({
+                timestamp: '2026-11-25T00:00:00.000Z',
+                environment: 'remote',
+                overallStatus: 'healthy',
+                lang: 'zh',
+                checks: []
+            });
+            assert.ok(zhReport.includes('Antigravity AGY Proxy 诊断报告'));
+
             // 3. Switch to env-only + socks5h
             const out3 = execSync(`bash "${scriptPath}"`, {
                 env: { ...baseEnv, PROXY_TYPE: 'socks5h', PROXY_MODE: 'env-only' },

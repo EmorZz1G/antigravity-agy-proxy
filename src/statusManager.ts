@@ -350,6 +350,10 @@ export class StatusManager {
         return { ...this.currentStatus };
     }
 
+    getLanguage(): Lang {
+        return this.currentLang;
+    }
+
     showStatusPanel(): void {
         if (this.statusPanel) {
             this.statusPanel.reveal();
@@ -407,6 +411,9 @@ export class StatusManager {
                         await this.context.globalState.update('uiLanguage', this.currentLang);
                         // Language change requires full rerender for all translated strings
                         this.forceRenderPanel();
+                        if (this.currentDiagnosticReport && !this.isRunningDiagnostics) {
+                            void this.runInlineDiagnostics();
+                        }
                         break;
                     case 'closeRemote':
                         vscode.window.showInformationMessage(
@@ -464,7 +471,8 @@ export class StatusManager {
                             checks: checks
                         });
                     }
-                }
+                },
+                this.currentLang
             );
         } finally {
             this.isRunningDiagnostics = false;
@@ -478,7 +486,7 @@ export class StatusManager {
      */
     private async copyDiagnosticReport(): Promise<void> {
         if (this.currentDiagnosticReport) {
-            const text = generateReportText(this.currentDiagnosticReport);
+            const text = generateReportText(this.currentDiagnosticReport, this.currentLang);
             await vscode.env.clipboard.writeText(text);
             const t = i18n[this.currentLang];
             vscode.window.showInformationMessage(t.reportCopied);
@@ -1781,8 +1789,12 @@ export class StatusManager {
                     const prefix = isLast ? '└──' : '├──';
                     const statusIcon = result.success ? '✓' : '✗';
                     const statusClass = result.success ? 'success' : 'error';
-                    const statusText = result.success ? 'Available' : 'Not working';
-                    const currentLabel = result.isCurrent ? ' ← Current' : '';
+                    const statusText = result.success
+                        ? (this.currentLang === 'zh' ? '可用' : 'Available')
+                        : (this.currentLang === 'zh' ? '不可用' : 'Not working');
+                    const currentLabel = result.isCurrent
+                        ? (this.currentLang === 'zh' ? ' ← 当前' : ' ← Current')
+                        : '';
                     return `
                                 <div class="protocol-item">
                                     <span class="protocol-prefix">${prefix}</span>

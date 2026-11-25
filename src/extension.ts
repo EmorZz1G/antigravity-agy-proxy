@@ -89,7 +89,7 @@ async function getLanguageServerProcess(): Promise<{
 	return {
 		pid: primary.pid,
 		isPersistent: primary.isPersistent,
-		isUsingProxy: primary.isWrappedBak && (primary.hasMgraftcpParent || primary.hasProxyEnv),
+		isUsingProxy: primary.isUsingProxy,
 		targetType: primary.targetType,
 		fdCount: primary.fdCount,
 		detectedMode: primary.detectedMode
@@ -445,6 +445,8 @@ async function executeAutoFixCommand(extensionPath: string, extensionVersion: st
 	const fdGuardThreshold = cfg.get<number>('fdGuardThreshold', 10000);
 
 	const runFix = async () => {
+		const lang = statusManager.getLanguage();
+		const isZh = lang === 'zh';
 		const result = await runAutoFix({
 			proxyHost: host,
 			proxyPort: port,
@@ -455,6 +457,7 @@ async function executeAutoFixCommand(extensionPath: string, extensionVersion: st
 			enableFdGuard,
 			fdGuardIntervalMinutes,
 			fdGuardThreshold,
+			lang,
 			updateConfig: async (key, value) => {
 				await vscode.workspace.getConfiguration('antigravity-agy-proxy').update(
 					key,
@@ -479,30 +482,38 @@ async function executeAutoFixCommand(extensionPath: string, extensionVersion: st
 		}
 
 		const summary = result.actions.join(' | ');
+		const runDiagLabel = isZh ? '运行诊断' : 'Run Diagnostics';
+		const reloadLabel = isZh ? '立即重载' : 'Reload Now';
+		const laterLabel = isZh ? '稍后' : 'Later';
+
 		if (result.remainingIssues.length > 0) {
+			const msg = isZh
+				? `一键排错: ${summary}。待处理项: ${result.remainingIssues.join(' ')}`
+				: `Auto Fix: ${summary}. Remaining: ${result.remainingIssues.join(' ')}`;
 			vscode.window.showWarningMessage(
-				`Auto Fix: ${summary}. Remaining: ${result.remainingIssues.join(' ')}`,
-				'Run Diagnostics',
-				...(result.needsReload ? ['Reload Now'] : [])
+				msg,
+				runDiagLabel,
+				...(result.needsReload ? [reloadLabel] : [])
 			).then(sel => {
-				if (sel === 'Run Diagnostics') {
+				if (sel === runDiagLabel) {
 					vscode.commands.executeCommand('antigravity-agy-proxy.diagnose');
-				} else if (sel === 'Reload Now') {
+				} else if (sel === reloadLabel) {
 					vscode.commands.executeCommand('workbench.action.reloadWindow');
 				}
 			});
 		} else if (result.needsReload) {
+			const msg = isZh ? `一键排错已应用: ${summary}` : `Auto Fix applied: ${summary}`;
 			vscode.window.showInformationMessage(
-				`Auto Fix applied: ${summary}`,
-				'Reload Now',
-				'Later'
+				msg,
+				reloadLabel,
+				laterLabel
 			).then(sel => {
-				if (sel === 'Reload Now') {
+				if (sel === reloadLabel) {
 					vscode.commands.executeCommand('workbench.action.reloadWindow');
 				}
 			});
 		} else {
-			vscode.window.showInformationMessage(`Auto Fix: ${summary}`);
+			vscode.window.showInformationMessage(isZh ? `一键排错: ${summary}` : `Auto Fix: ${summary}`);
 		}
 	};
 
@@ -512,7 +523,9 @@ async function executeAutoFixCommand(extensionPath: string, extensionVersion: st
 		await vscode.window.withProgress(
 			{
 				location: vscode.ProgressLocation.Notification,
-				title: 'Antigravity AGY Proxy: Running Auto Fix...',
+				title: statusManager.getLanguage() === 'zh'
+					? 'Antigravity AGY Proxy: 正在执行一键排错...'
+					: 'Antigravity AGY Proxy: Running Auto Fix...',
 				cancellable: false
 			},
 			runFix

@@ -1,5 +1,7 @@
 # Antigravity AGY Proxy
 
+![Antigravity AGY Proxy Banner](resources/banner.png)
+
 English | [简体中文](README.md)
 
 An independently enhanced proxy & resilience extension for Antigravity IDE Remote-SSH environments, supporting both **Antigravity IDE v2.6.0+ (`~/.gemini/bin/agy --hub`)** and **legacy `language_server_linux_*` servers**, with **FakeDNS UDP/FD leak prevention, SSH keepalive hardening, rootless Crontab FD Guard, refactored 9-point diagnostics, and automated troubleshooting**.

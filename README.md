@@ -1,5 +1,7 @@
 # Antigravity AGY Proxy
 
+![Antigravity AGY Proxy Banner](resources/banner.png)
+
 [English](README.en.md) | 简体中文
 
 面向 Antigravity Remote-SSH 环境的独立增强型代理与稳定性保障插件，全面兼容 **Antigravity IDE v2.6.0+（`~/.gemini/bin/agy --hub`）** 与**旧版本（`language_server_linux_*`）**，重点解决 **FakeDNS UDP 句柄泄漏导致服务器无法连接、SSH 隧道僵死、DNS 污染及无交互自动排错** 等核心痛点。

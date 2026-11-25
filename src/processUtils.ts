@@ -11,6 +11,8 @@ export interface BackendProcessInfo {
     targetType: 'agy' | 'language_server';
     isWrappedBak: boolean;
     isPersistent: boolean;
+    isOrphan: boolean;
+    isUsingProxy: boolean;
     hasMgraftcpParent: boolean;
     mgraftcpHasDisableFakedns?: boolean;
     detectedMode: ProxyMode | 'unknown';
@@ -173,12 +175,17 @@ export async function inspectBackendProcesses(): Promise<BackendProcessInfo[]> {
             detectedMode = 'env-only';
         }
 
+        const isOrphan = ppid === 1 && !mgParent;
+        const isUsingProxy = isWrappedBak && (Boolean(mgParent) || hasProxyEnv);
+
         results.push({
             pid,
             ppid,
             targetType: isAgy ? 'agy' : 'language_server',
             isWrappedBak,
             isPersistent,
+            isOrphan,
+            isUsingProxy,
             hasMgraftcpParent: Boolean(mgParent),
             mgraftcpHasDisableFakedns: mgParent?.disableFakeDns,
             detectedMode,
@@ -188,10 +195,16 @@ export async function inspectBackendProcesses(): Promise<BackendProcessInfo[]> {
         });
     }
 
-    // Prefer agy first, then higher FD / wrapped processes
+    // Prefer agy, then active (non-orphan) proxied processes before orphaned PPID=1 processes
     results.sort((a, b) => {
         if (a.targetType !== b.targetType) {
             return a.targetType === 'agy' ? -1 : 1;
+        }
+        if (a.isOrphan !== b.isOrphan) {
+            return a.isOrphan ? 1 : -1;
+        }
+        if (a.isUsingProxy !== b.isUsingProxy) {
+            return a.isUsingProxy ? -1 : 1;
         }
         return b.pid - a.pid;
     });
@@ -432,11 +445,12 @@ export async function inspectUdpAndFdHealth(
 
 /**
  * Kill Antigravity backend processes (and matching mgraftcp-fakedns parents).
- * When `minFdCount` is set, only kills processes exceeding that FD count.
+ * Supports filtering by `minFdCount`, explicit `pidsOnly`, or `orphansOnly` (`ppid === 1`).
  */
 export async function killBackendProcesses(options?: {
     minFdCount?: number;
     pidsOnly?: number[];
+    orphansOnly?: boolean;
 }): Promise<{ killedPids: number[]; killedMgraftcpPids: number[] }> {
     const procs = await inspectBackendProcesses();
     const mgProcs = await inspectAntigravityMgraftcpProcesses();
@@ -445,6 +459,9 @@ export async function killBackendProcesses(options?: {
 
     const targets = procs.filter(p => {
         if (options?.pidsOnly && !options.pidsOnly.includes(p.pid)) {
+            return false;
+        }
+        if (options?.orphansOnly && !p.isOrphan) {
             return false;
         }
         if (options?.minFdCount !== undefined && p.fdCount < options.minFdCount) {
@@ -462,10 +479,14 @@ export async function killBackendProcesses(options?: {
         }
     }
 
-    // Also terminate associated mgraftcp-fakedns processes when killing all or targeting their child
+    // Only terminate mgraftcp parents for killed children, or all mgraftcp when doing a full kill
+    const isFullKill =
+        options?.minFdCount === undefined &&
+        !options?.pidsOnly &&
+        !options?.orphansOnly;
     const killedChildPpids = new Set(targets.map(t => t.ppid));
     for (const mg of mgProcs) {
-        if (options?.minFdCount === undefined && !options?.pidsOnly || killedChildPpids.has(mg.pid)) {
+        if (isFullKill || killedChildPpids.has(mg.pid)) {
             try {
                 process.kill(mg.pid, 'SIGKILL');
                 killedMgraftcpPids.push(mg.pid);

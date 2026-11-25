@@ -435,36 +435,37 @@ PROXY_TYPE="__PROXY_TYPE_PLACEHOLDER__"
 PROXY_MODE="__PROXY_MODE_PLACEHOLDER__"
 EXTENSION_BIN_PATH="__EXTENSION_BIN_PATH_PLACEHOLDER__"
 
-# Export standard proxy environment variables across all modes
+# Export standard proxy environment variables cleanly by mode
 export NO_PROXY="localhost,127.0.0.1,::1${NO_PROXY:+,$NO_PROXY}"
 export no_proxy="localhost,127.0.0.1,::1${no_proxy:+,$no_proxy}"
 
-case "$PROXY_TYPE" in
-    socks5h)
-        export HTTP_PROXY="socks5h://$PROXY_ADDR"
-        export HTTPS_PROXY="socks5h://$PROXY_ADDR"
-        export ALL_PROXY="socks5h://$PROXY_ADDR"
-        export http_proxy="socks5h://$PROXY_ADDR"
-        export https_proxy="socks5h://$PROXY_ADDR"
-        export all_proxy="socks5h://$PROXY_ADDR"
-        ;;
-    socks5)
-        export HTTP_PROXY="socks5://$PROXY_ADDR"
-        export HTTPS_PROXY="socks5://$PROXY_ADDR"
-        export ALL_PROXY="socks5://$PROXY_ADDR"
-        export http_proxy="socks5://$PROXY_ADDR"
-        export https_proxy="socks5://$PROXY_ADDR"
-        export all_proxy="socks5://$PROXY_ADDR"
-        ;;
-    *)
-        export HTTP_PROXY="http://$PROXY_ADDR"
-        export HTTPS_PROXY="http://$PROXY_ADDR"
-        export ALL_PROXY="http://$PROXY_ADDR"
-        export http_proxy="http://$PROXY_ADDR"
-        export https_proxy="http://$PROXY_ADDR"
-        export all_proxy="http://$PROXY_ADDR"
-        ;;
-esac
+if [ "$PROXY_MODE" = "env-only" ]; then
+    case "$PROXY_TYPE" in
+        socks5h) PROXY_SCHEME="socks5h" ;;
+        socks5) PROXY_SCHEME="socks5" ;;
+        *) PROXY_SCHEME="http" ;;
+    esac
+    export HTTP_PROXY="$PROXY_SCHEME://$PROXY_ADDR"
+    export HTTPS_PROXY="$PROXY_SCHEME://$PROXY_ADDR"
+    export ALL_PROXY="$PROXY_SCHEME://$PROXY_ADDR"
+    export http_proxy="$PROXY_SCHEME://$PROXY_ADDR"
+    export https_proxy="$PROXY_SCHEME://$PROXY_ADDR"
+    export all_proxy="$PROXY_SCHEME://$PROXY_ADDR"
+elif [ "$PROXY_TYPE" = "socks5h" ]; then
+    # Under mgraftcp --socks5, avoid setting HTTP_PROXY/HTTPS_PROXY=socks5* to prevent Go double-proxy conflicts
+    export ALL_PROXY="socks5h://$PROXY_ADDR"
+    export all_proxy="socks5h://$PROXY_ADDR"
+elif [ "$PROXY_TYPE" = "socks5" ]; then
+    export ALL_PROXY="socks5://$PROXY_ADDR"
+    export all_proxy="socks5://$PROXY_ADDR"
+else
+    export HTTP_PROXY="http://$PROXY_ADDR"
+    export HTTPS_PROXY="http://$PROXY_ADDR"
+    export ALL_PROXY="http://$PROXY_ADDR"
+    export http_proxy="http://$PROXY_ADDR"
+    export https_proxy="http://$PROXY_ADDR"
+    export all_proxy="http://$PROXY_ADDR"
+fi
 
 # Strategy 1 (pure env mode): bypass mgraftcp, ptrace, and FakeDNS completely
 if [ "$PROXY_MODE" = "env-only" ]; then
