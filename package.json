@@ -4,7 +4,8 @@
   "displayName": "Antigravity AGY Proxy",
   "description": "Independent enhanced proxy & resilience extension for Antigravity IDE Remote-SSH (v2.6.0+ agy & legacy language servers), featuring UDP/FD leak prevention, SSH keepalive, crontab FD guard, and auto-troubleshooting.",
   "icon": "resources/icon.png",
-  "version": "0.1.0",
+  "license": "MIT",
+  "version": "0.1.1",
   "repository": {
     "type": "git",
     "url": "https://github.com/EmorZz1G/antigravity-agy-proxy"

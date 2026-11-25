@@ -40,3 +40,9 @@ jobs:
           draft: false
           files: antigravity-agy-proxy-${{ steps.version.outputs.VERSION }}.vsix
           generate_release_notes: true
+
+      - name: Publish to Open VSX
+        if: ${{ secrets.OVSX_PAT != '' }}
+        env:
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+        run: npx -y ovsx publish antigravity-agy-proxy-${{ steps.version.outputs.VERSION }}.vsix

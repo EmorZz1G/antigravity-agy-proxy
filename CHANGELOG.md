@@ -2,6 +2,15 @@
 
 All notable changes to the "Antigravity AGY Proxy" extension will be documented in this file.
 
+## [0.1.1] - 2026-11-25
+
+### Changed & Fixed
+
+- **Targeted Auto-Fix & Orphan Isolation**: Distinguished active processes from `PPID=1` orphaned processes so one-click Auto Fix cleans up stale/leaking orphans without terminating the active main process.
+- **Bilingual Diagnostics & Reports**: Full Chinese and English localization across diagnostic checks and exported reports.
+- **SOCKS5 Environment Conflict Fix**: Resolved environment variable conflicts under `mgraftcp` + `socks5` mode.
+- **Branding & Open VSX Release Readiness**: Replaced legacy `ATP.jpg` with `resources/icon.png` and `resources/banner.png`, added explicit `"license": "MIT"` in `package.json`, and added Open VSX publishing support to `.github/workflows/release.yml`.
+
 ## [0.1.0] - 2026-11-25
 
 > **Standalone Origin**: First independent release of **Antigravity AGY Proxy (`antigravity-agy-proxy`)** by EmorZz1G, independently enhanced and refactored based on `dinobot22/antigravity-ssh-proxy` (`0.0.17` / `0.0.19` `agy` support) and `mgraftcp`.
