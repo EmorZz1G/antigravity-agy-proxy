@@ -1,19 +1,19 @@
 {
   "extension": "EmorZz1G.antigravity-agy-proxy",
   "repository": "https://github.com/EmorZz1G/antigravity-agy-proxy",
-  "generatedAt": "2026-11-26T07:33:17.045Z",
+  "generatedAt": "2026-11-26T07:39:15.861Z",
   "summary": {
     "openvsxTotal": 142,
-    "marketplaceInstall": 2,
-    "marketplaceDownload": 45,
+    "marketplaceInstall": 3,
+    "marketplaceDownload": 49,
     "marketplaceUpdate": 0,
-    "marketplaceCombined": 47,
-    "combinedInstalls": 144,
-    "combinedAll": 189,
+    "marketplaceCombined": 52,
+    "combinedInstalls": 145,
+    "combinedAll": 194,
     "openvsxVersion": "0.1.2",
     "marketplaceVersion": "0.1.2",
     "githubStars": 1,
-    "lastUpdated": "2026-11-26T07:33:17.045Z"
+    "lastUpdated": "2026-11-26T07:39:15.861Z"
   },
   "milestones": [
     {
@@ -339,11 +339,11 @@
     {
       "date": "2026-11-26",
       "openvsx": 27,
-      "mpInstallTotal": 2,
-      "mpDownloadTotal": 45,
+      "mpInstallTotal": 3,
+      "mpDownloadTotal": 49,
       "mpUpdateTotal": 0,
-      "mpInstall": 2,
-      "mpDownload": 45,
+      "mpInstall": 3,
+      "mpDownload": 49,
       "mpUpdate": 0
     }
   ],
@@ -361,6 +361,14 @@
       "openvsxTotal": 142,
       "mpInstall": 2,
       "mpDownload": 45,
+      "mpUpdate": 0,
+      "githubStars": 1
+    },
+    {
+      "ts": "2026-11-26T07:39:15.861Z",
+      "openvsxTotal": 142,
+      "mpInstall": 3,
+      "mpDownload": 49,
       "mpUpdate": 0,
       "githubStars": 1
     }
