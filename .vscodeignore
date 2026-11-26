@@ -5,6 +5,7 @@ node_modules/**
 src/**
 docs/**
 site/**
+seller/**
 *.vsix
 .gitignore
 .yarnrc
