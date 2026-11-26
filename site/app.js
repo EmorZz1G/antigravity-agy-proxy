@@ -6,6 +6,7 @@
       'nav.modes': '代理策略',
       'nav.compatibility': '兼容矩阵',
       'nav.docs': '文档中心',
+      'nav.stats': '下载统计',
       'nav.getExt': '获取扩展',
 
       'hero.badge': 'v0.1.2 · 已上架 Open VSX 与 VS Code Marketplace',
@@ -122,6 +123,7 @@
       'nav.modes': 'Proxy Modes',
       'nav.compatibility': 'Compatibility',
       'nav.docs': 'Docs',
+      'nav.stats': 'Stats',
       'nav.getExt': 'Get Extension',
 
       'hero.badge': 'v0.1.2 · Live on Open VSX & VS Code Marketplace',

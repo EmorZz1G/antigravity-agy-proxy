@@ -1,0 +1,354 @@
+{
+  "extension": "EmorZz1G.antigravity-agy-proxy",
+  "repository": "https://github.com/EmorZz1G/antigravity-agy-proxy",
+  "generatedAt": "2026-11-26T07:27:15.181Z",
+  "summary": {
+    "openvsxTotal": 142,
+    "marketplaceInstall": 2,
+    "marketplaceDownload": 44,
+    "marketplaceUpdate": 0,
+    "marketplaceCombined": 46,
+    "combinedInstalls": 144,
+    "combinedAll": 188,
+    "openvsxVersion": "0.1.2",
+    "marketplaceVersion": "0.1.2",
+    "githubStars": null,
+    "lastUpdated": "2026-11-26T07:27:15.181Z"
+  },
+  "milestones": [
+    {
+      "tag": "v0.1.1",
+      "date": "2026-11-25",
+      "name": "v0.1.1",
+      "url": "https://github.com/EmorZz1G/antigravity-agy-proxy/releases/tag/v0.1.1"
+    },
+    {
+      "tag": "v0.1.2",
+      "date": "2026-11-25",
+      "name": "v0.1.2",
+      "url": "https://github.com/EmorZz1G/antigravity-agy-proxy/releases/tag/v0.1.2"
+    }
+  ],
+  "daily": [
+    {
+      "date": "2026-10-27",
+      "openvsx": 0,
+      "mpInstallTotal": null,
+      "mpDownloadTotal": null,
+      "mpUpdateTotal": null,
+      "mpInstall": 0,
+      "mpDownload": 0,
+      "mpUpdate": 0
+    },
+    {
+      "date": "2026-10-28",
+      "openvsx": 0,
+      "mpInstallTotal": null,
+      "mpDownloadTotal": null,
+      "mpUpdateTotal": null,
+      "mpInstall": 0,
+      "mpDownload": 0,
+      "mpUpdate": 0
+    },
+    {
+      "date": "2026-10-29",
+      "openvsx": 0,
+      "mpInstallTotal": null,
+      "mpDownloadTotal": null,
+      "mpUpdateTotal": null,
+      "mpInstall": 0,
+      "mpDownload": 0,
+      "mpUpdate": 0
+    },
+    {
+      "date": "2026-10-30",
+      "openvsx": 0,
+      "mpInstallTotal": null,
+      "mpDownloadTotal": null,
+      "mpUpdateTotal": null,
+      "mpInstall": 0,
+      "mpDownload": 0,
+      "mpUpdate": 0
+    },
+    {
+      "date": "2026-10-31",
+      "openvsx": 0,
+      "mpInstallTotal": null,
+      "mpDownloadTotal": null,
+      "mpUpdateTotal": null,
+      "mpInstall": 0,
+      "mpDownload": 0,
+      "mpUpdate": 0
+    },
+    {
+      "date": "2026-11-01",
+      "openvsx": 0,
+      "mpInstallTotal": null,
+      "mpDownloadTotal": null,
+      "mpUpdateTotal": null,
+      "mpInstall": 0,
+      "mpDownload": 0,
+      "mpUpdate": 0
+    },
+    {
+      "date": "2026-11-02",
+      "openvsx": 0,
+      "mpInstallTotal": null,
+      "mpDownloadTotal": null,
+      "mpUpdateTotal": null,
+      "mpInstall": 0,
+      "mpDownload": 0,
+      "mpUpdate": 0
+    },
+    {
+      "date": "2026-11-03",
+      "openvsx": 0,
+      "mpInstallTotal": null,
+      "mpDownloadTotal": null,
+      "mpUpdateTotal": null,
+      "mpInstall": 0,
+      "mpDownload": 0,
+      "mpUpdate": 0
+    },
+    {
+      "date": "2026-11-04",
+      "openvsx": 0,
+      "mpInstallTotal": null,
+      "mpDownloadTotal": null,
+      "mpUpdateTotal": null,
+      "mpInstall": 0,
+      "mpDownload": 0,
+      "mpUpdate": 0
+    },
+    {
+      "date": "2026-11-05",
+      "openvsx": 0,
+      "mpInstallTotal": null,
+      "mpDownloadTotal": null,
+      "mpUpdateTotal": null,
+      "mpInstall": 0,
+      "mpDownload": 0,
+      "mpUpdate": 0
+    },
+    {
+      "date": "2026-11-06",
+      "openvsx": 0,
+      "mpInstallTotal": null,
+      "mpDownloadTotal": null,
+      "mpUpdateTotal": null,
+      "mpInstall": 0,
+      "mpDownload": 0,
+      "mpUpdate": 0
+    },
+    {
+      "date": "2026-11-07",
+      "openvsx": 0,
+      "mpInstallTotal": null,
+      "mpDownloadTotal": null,
+      "mpUpdateTotal": null,
+      "mpInstall": 0,
+      "mpDownload": 0,
+      "mpUpdate": 0
+    },
+    {
+      "date": "2026-11-08",
+      "openvsx": 0,
+      "mpInstallTotal": null,
+      "mpDownloadTotal": null,
+      "mpUpdateTotal": null,
+      "mpInstall": 0,
+      "mpDownload": 0,
+      "mpUpdate": 0
+    },
+    {
+      "date": "2026-11-09",
+      "openvsx": 0,
+      "mpInstallTotal": null,
+      "mpDownloadTotal": null,
+      "mpUpdateTotal": null,
+      "mpInstall": 0,
+      "mpDownload": 0,
+      "mpUpdate": 0
+    },
+    {
+      "date": "2026-11-10",
+      "openvsx": 0,
+      "mpInstallTotal": null,
+      "mpDownloadTotal": null,
+      "mpUpdateTotal": null,
+      "mpInstall": 0,
+      "mpDownload": 0,
+      "mpUpdate": 0
+    },
+    {
+      "date": "2026-11-11",
+      "openvsx": 0,
+      "mpInstallTotal": null,
+      "mpDownloadTotal": null,
+      "mpUpdateTotal": null,
+      "mpInstall": 0,
+      "mpDownload": 0,
+      "mpUpdate": 0
+    },
+    {
+      "date": "2026-11-12",
+      "openvsx": 0,
+      "mpInstallTotal": null,
+      "mpDownloadTotal": null,
+      "mpUpdateTotal": null,
+      "mpInstall": 0,
+      "mpDownload": 0,
+      "mpUpdate": 0
+    },
+    {
+      "date": "2026-11-13",
+      "openvsx": 0,
+      "mpInstallTotal": null,
+      "mpDownloadTotal": null,
+      "mpUpdateTotal": null,
+      "mpInstall": 0,
+      "mpDownload": 0,
+      "mpUpdate": 0
+    },
+    {
+      "date": "2026-11-14",
+      "openvsx": 0,
+      "mpInstallTotal": null,
+      "mpDownloadTotal": null,
+      "mpUpdateTotal": null,
+      "mpInstall": 0,
+      "mpDownload": 0,
+      "mpUpdate": 0
+    },
+    {
+      "date": "2026-11-15",
+      "openvsx": 0,
+      "mpInstallTotal": null,
+      "mpDownloadTotal": null,
+      "mpUpdateTotal": null,
+      "mpInstall": 0,
+      "mpDownload": 0,
+      "mpUpdate": 0
+    },
+    {
+      "date": "2026-11-16",
+      "openvsx": 0,
+      "mpInstallTotal": null,
+      "mpDownloadTotal": null,
+      "mpUpdateTotal": null,
+      "mpInstall": 0,
+      "mpDownload": 0,
+      "mpUpdate": 0
+    },
+    {
+      "date": "2026-11-17",
+      "openvsx": 0,
+      "mpInstallTotal": null,
+      "mpDownloadTotal": null,
+      "mpUpdateTotal": null,
+      "mpInstall": 0,
+      "mpDownload": 0,
+      "mpUpdate": 0
+    },
+    {
+      "date": "2026-11-18",
+      "openvsx": 0,
+      "mpInstallTotal": null,
+      "mpDownloadTotal": null,
+      "mpUpdateTotal": null,
+      "mpInstall": 0,
+      "mpDownload": 0,
+      "mpUpdate": 0
+    },
+    {
+      "date": "2026-11-19",
+      "openvsx": 0,
+      "mpInstallTotal": null,
+      "mpDownloadTotal": null,
+      "mpUpdateTotal": null,
+      "mpInstall": 0,
+      "mpDownload": 0,
+      "mpUpdate": 0
+    },
+    {
+      "date": "2026-11-20",
+      "openvsx": 0,
+      "mpInstallTotal": null,
+      "mpDownloadTotal": null,
+      "mpUpdateTotal": null,
+      "mpInstall": 0,
+      "mpDownload": 0,
+      "mpUpdate": 0
+    },
+    {
+      "date": "2026-11-21",
+      "openvsx": 0,
+      "mpInstallTotal": null,
+      "mpDownloadTotal": null,
+      "mpUpdateTotal": null,
+      "mpInstall": 0,
+      "mpDownload": 0,
+      "mpUpdate": 0
+    },
+    {
+      "date": "2026-11-22",
+      "openvsx": 0,
+      "mpInstallTotal": null,
+      "mpDownloadTotal": null,
+      "mpUpdateTotal": null,
+      "mpInstall": 0,
+      "mpDownload": 0,
+      "mpUpdate": 0
+    },
+    {
+      "date": "2026-11-23",
+      "openvsx": 0,
+      "mpInstallTotal": null,
+      "mpDownloadTotal": null,
+      "mpUpdateTotal": null,
+      "mpInstall": 0,
+      "mpDownload": 0,
+      "mpUpdate": 0
+    },
+    {
+      "date": "2026-11-24",
+      "openvsx": 0,
+      "mpInstallTotal": null,
+      "mpDownloadTotal": null,
+      "mpUpdateTotal": null,
+      "mpInstall": 0,
+      "mpDownload": 0,
+      "mpUpdate": 0
+    },
+    {
+      "date": "2026-11-25",
+      "openvsx": 116,
+      "mpInstallTotal": null,
+      "mpDownloadTotal": null,
+      "mpUpdateTotal": null,
+      "mpInstall": 0,
+      "mpDownload": 0,
+      "mpUpdate": 0
+    },
+    {
+      "date": "2026-11-26",
+      "openvsx": 27,
+      "mpInstallTotal": 2,
+      "mpDownloadTotal": 44,
+      "mpUpdateTotal": 0,
+      "mpInstall": 2,
+      "mpDownload": 44,
+      "mpUpdate": 0
+    }
+  ],
+  "snapshots": [
+    {
+      "ts": "2026-11-26T07:27:15.181Z",
+      "openvsxTotal": 142,
+      "mpInstall": 2,
+      "mpDownload": 44,
+      "mpUpdate": 0,
+      "githubStars": null
+    }
+  ]
+}

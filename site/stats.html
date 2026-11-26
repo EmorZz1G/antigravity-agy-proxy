@@ -1,0 +1,1010 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Antigravity AGY Proxy — Download Analytics</title>
+  <meta name="description" content="Dual-source download & install trend analytics for Antigravity AGY Proxy across Open VSX and VS Code Marketplace." />
+  <link rel="icon" type="image/png" href="./assets/icon.png" />
+  <link rel="stylesheet" href="./styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"></script>
+  <style>
+    .stats-main {
+      padding: 28px 0 56px;
+    }
+
+    .stats-hero {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: flex-end;
+      gap: 16px;
+      margin-bottom: 22px;
+    }
+
+    .stats-hero h1 {
+      font-size: clamp(1.5rem, 2.5vw, 2rem);
+      margin: 6px 0 4px;
+      letter-spacing: -0.02em;
+    }
+
+    .stats-hero p {
+      color: var(--text-muted);
+      font-size: 0.92rem;
+    }
+
+    .stats-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+      gap: 14px;
+      margin-bottom: 20px;
+    }
+
+    .kpi-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 16px 18px;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .kpi-label {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .kpi-value {
+      font-size: 1.85rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      margin-bottom: 6px;
+    }
+
+    .kpi-meta {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .dot {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      margin-right: 4px;
+    }
+
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 18px 20px;
+      margin-bottom: 20px;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px 18px;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+      padding-bottom: 14px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .control-group {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .control-title {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+
+    .seg {
+      display: inline-flex;
+      background: var(--surface-subtle);
+      padding: 3px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      gap: 2px;
+    }
+
+    .seg button {
+      border: none;
+      background: transparent;
+      color: var(--text-muted);
+      padding: 5px 10px;
+      border-radius: 7px;
+      font-size: 0.8rem;
+      cursor: pointer;
+      font-weight: 500;
+      transition: all 0.15s ease;
+    }
+
+    .seg button.active {
+      background: var(--surface);
+      color: var(--text);
+      box-shadow: var(--shadow-sm);
+    }
+
+    #main-chart {
+      width: 100%;
+      height: 440px;
+    }
+
+    .split-grid {
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: 18px;
+    }
+
+    @media (max-width: 900px) {
+      .split-grid {
+        grid-template-columns: 1fr;
+      }
+      #main-chart {
+        height: 360px;
+      }
+    }
+
+    .section-title {
+      font-size: 0.96rem;
+      font-weight: 700;
+      margin-bottom: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .stats-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.82rem;
+    }
+
+    .stats-table th,
+    .stats-table td {
+      padding: 9px 10px;
+      border-bottom: 1px solid var(--border);
+      text-align: right;
+    }
+
+    .stats-table th:first-child,
+    .stats-table td:first-child {
+      text-align: left;
+    }
+
+    .stats-table th {
+      color: var(--text-muted);
+      font-weight: 600;
+      font-size: 0.76rem;
+    }
+
+    .stats-table tbody tr:hover {
+      background: var(--surface-subtle);
+    }
+
+    .badge-box {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 0.76rem;
+      color: var(--text);
+      word-break: break-all;
+      margin: 10px 0;
+    }
+
+    .milestone-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .milestone-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 10px;
+      border-radius: 8px;
+      background: var(--surface-subtle);
+      border: 1px solid var(--border);
+      font-size: 0.8rem;
+      text-decoration: none;
+      color: var(--text);
+    }
+
+    .milestone-item:hover {
+      border-color: var(--primary);
+    }
+
+    .footer-note {
+      text-align: center;
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      margin-top: 12px;
+    }
+
+    .toast {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background: var(--surface);
+      border: 1px solid var(--primary);
+      color: var(--text);
+      padding: 10px 14px;
+      border-radius: 10px;
+      font-size: 0.82rem;
+      box-shadow: var(--shadow-lg);
+      opacity: 0;
+      transform: translateY(10px);
+      transition: all 0.2s ease;
+      pointer-events: none;
+      z-index: 100;
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  </style>
+</head>
+<body>
+  <header class="navbar">
+    <div class="container nav-inner">
+      <a href="./index.html" class="brand">
+        <svg class="brand-logo" viewBox="0 0 64 64" fill="none" aria-hidden="true">
+          <defs>
+            <linearGradient id="agyHexGrad" x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stop-color="#38bdf8" />
+              <stop offset="55%" stop-color="#34d399" />
+              <stop offset="100%" stop-color="#818cf8" />
+            </linearGradient>
+          </defs>
+          <rect width="64" height="64" rx="16" fill="#0f172a" />
+          <polygon points="32,8 53,20 53,44 32,56 11,44 11,20" stroke="url(#agyHexGrad)" stroke-width="3.2" fill="none" />
+          <text x="32" y="38" text-anchor="middle" fill="#f8fafc" font-family="system-ui, -apple-system, sans-serif" font-size="16" font-weight="800" letter-spacing="1">AGY</text>
+        </svg>
+        <span class="brand-name">Antigravity AGY Proxy</span>
+      </a>
+
+      <nav class="nav-links" aria-label="Primary Navigation">
+        <a href="./index.html#features" data-i18n="nav.features">核心特性</a>
+        <a href="./index.html#install" data-i18n="nav.install">快速安装</a>
+        <a href="./index.html#modes" data-i18n="nav.modes">代理策略</a>
+        <a href="./index.html#docs" data-i18n="nav.docs">文档中心</a>
+        <a href="./stats.html" style="color: var(--primary); font-weight: 600;" data-i18n="nav.stats">下载统计</a>
+      </nav>
+
+      <div class="nav-actions">
+        <button id="btn-lang" class="icon-btn" type="button">EN</button>
+        <button id="btn-theme" class="icon-btn" type="button" aria-label="Toggle Color Theme">
+          <span class="theme-icon-sun" aria-hidden="true">☀</span>
+          <span class="theme-icon-moon" aria-hidden="true">☾</span>
+        </button>
+        <a class="btn btn-sm btn-primary" href="https://open-vsx.org/extension/EmorZz1G/antigravity-agy-proxy" target="_blank" rel="noopener noreferrer" data-i18n="nav.getExt">获取扩展</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="container stats-main">
+    <div class="stats-hero">
+      <div>
+        <div class="eyebrow">
+          <span class="dot-live"></span>
+          <span data-i18n="eyebrow">Open VSX + VS Code Marketplace · 每 8 小时自动同步</span>
+        </div>
+        <h1 data-i18n="title">下载量与安装趋势看板</h1>
+        <p data-i18n="subtitle">同表对比 Open VSX 与 VS Code Marketplace 数据，支持多粒度聚合、版本节点标注与数据导出。</p>
+      </div>
+      <div class="stats-actions">
+        <a class="btn btn-sm btn-secondary" href="./index.html" data-i18n="backHome">← 返回主页</a>
+        <button class="btn btn-sm btn-secondary" id="btn-csv" type="button">Export CSV</button>
+        <button class="btn btn-sm btn-secondary" id="btn-json" type="button">Export JSON</button>
+      </div>
+    </div>
+
+    <section class="kpi-grid">
+      <div class="kpi-card">
+        <div class="kpi-label"><span data-i18n="kpiTotal">双源累计总下载 / 安装</span><span id="kpi-version"></span></div>
+        <div class="kpi-value" id="kpi-total">--</div>
+        <div class="kpi-meta" id="kpi-total-split"></div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label"><span data-i18n="kpiLatest">最近一天新增</span><span id="kpi-latest-date"></span></div>
+        <div class="kpi-value" id="kpi-latest">--</div>
+        <div class="kpi-meta" id="kpi-latest-split"></div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label"><span data-i18n="kpiAvg7">近 7 日日均下载</span><span id="kpi-stars"></span></div>
+        <div class="kpi-value" id="kpi-avg7">--</div>
+        <div class="kpi-meta" id="kpi-avg7-split"></div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label"><span data-i18n="kpiGrowth">7 日环比增速</span><span data-i18n="kpiSync">8h Snapshot</span></div>
+        <div class="kpi-value" id="kpi-growth">--</div>
+        <div class="kpi-meta" id="kpi-updated"></div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="toolbar">
+        <div class="control-group">
+          <span class="control-title" data-i18n="lblGranularity">粒度</span>
+          <div class="seg" id="seg-granularity">
+            <button type="button" data-val="daily" class="active" data-i18n="granDaily">按日</button>
+            <button type="button" data-val="weekly" data-i18n="granWeekly">按周</button>
+            <button type="button" data-val="monthly" data-i18n="granMonthly">按月</button>
+            <button type="button" data-val="snapshots" data-i18n="granSnaps">8h 快照</button>
+          </div>
+        </div>
+
+        <div class="control-group">
+          <span class="control-title" data-i18n="lblMode">模式</span>
+          <div class="seg" id="seg-mode">
+            <button type="button" data-val="incremental" class="active" data-i18n="modeInc">增量变化</button>
+            <button type="button" data-val="cumulative" data-i18n="modeCum">累计曲线</button>
+          </div>
+        </div>
+
+        <div class="control-group">
+          <span class="control-title" data-i18n="lblChart">图表</span>
+          <div class="seg" id="seg-chart">
+            <button type="button" data-val="stackedBar" class="active" data-i18n="chartStack">堆叠柱状</button>
+            <button type="button" data-val="groupedBar" data-i18n="chartGroup">分组柱状</button>
+            <button type="button" data-val="line" data-i18n="chartLine">双线趋势</button>
+          </div>
+        </div>
+
+        <div class="control-group">
+          <span class="control-title" data-i18n="lblMpScope">Marketplace 口径</span>
+          <div class="seg" id="seg-mp-scope">
+            <button type="button" data-val="combined" class="active" data-i18n="mpCombined">Install + Web VSIX</button>
+            <button type="button" data-val="install" data-i18n="mpInstallOnly">仅 Install</button>
+            <button type="button" data-val="breakdown" data-i18n="mpBreakdown">分项拆分</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="main-chart"></div>
+    </section>
+
+    <section class="split-grid">
+      <div class="panel">
+        <div class="section-title">
+          <span data-i18n="tableTitle">近期明细数据</span>
+          <span style="font-size:0.78rem; color:var(--text-muted)" id="table-scope-label"></span>
+        </div>
+        <div style="overflow-x: auto;">
+          <table class="stats-table">
+            <thead id="data-thead"></thead>
+            <tbody id="data-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="section-title">
+          <span data-i18n="badgeTitle">README 动态徽章与版本节点</span>
+        </div>
+        <div style="margin-bottom: 10px;">
+          <img alt="Downloads Badge" src="https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FEmorZz1G%2Fantigravity-agy-proxy%2Fmain%2Fsite%2Fdata%2Fbadge.json" />
+        </div>
+        <div style="font-size:0.78rem; color:var(--text-muted)" data-i18n="badgeHint">基于 site/data/badge.json 的 Shields.io 实时总下载徽章代码：</div>
+        <div class="badge-box" id="badge-md">[![Downloads](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FEmorZz1G%2Fantigravity-agy-proxy%2Fmain%2Fsite%2Fdata%2Fbadge.json)](https://emorzz1g.github.io/antigravity-agy-proxy/stats.html)</div>
+        <button class="btn btn-sm btn-primary" id="btn-copy-badge" type="button" data-i18n="copyBadge">复制徽章代码</button>
+
+        <div class="section-title" style="margin-top: 20px;" data-i18n="milestonesTitle">版本里程碑</div>
+        <div class="milestone-list" id="milestone-list"></div>
+      </div>
+    </section>
+
+    <div class="footer-note" id="footer-note"></div>
+  </main>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+    const I18N = {
+      zh: {
+        'nav.features': '核心特性',
+        'nav.install': '快速安装',
+        'nav.modes': '代理策略',
+        'nav.docs': '文档中心',
+        'nav.stats': '下载统计',
+        'nav.getExt': '获取扩展',
+        eyebrow: 'Open VSX + VS Code Marketplace · 每 8 小时自动同步',
+        title: '下载量与安装趋势看板',
+        subtitle: '同表对比 Open VSX 与 VS Code Marketplace 数据，支持多粒度聚合、版本节点标注与数据导出。',
+        backHome: '← 返回主页',
+        kpiTotal: '双源累计总下载 / 安装',
+        kpiLatest: '最近一天新增',
+        kpiAvg7: '近 7 日日均下载',
+        kpiGrowth: '7 日环比增速',
+        kpiSync: '每 8h 自动更新',
+        lblGranularity: '粒度',
+        granDaily: '按日',
+        granWeekly: '按周',
+        granMonthly: '按月',
+        granSnaps: '8h 快照',
+        lblMode: '模式',
+        modeInc: '增量变化',
+        modeCum: '累计曲线',
+        lblChart: '图表',
+        chartStack: '堆叠柱状',
+        chartGroup: '分组柱状',
+        chartLine: '双线趋势',
+        lblMpScope: 'Marketplace 口径',
+        mpCombined: 'Install + Web VSIX',
+        mpInstallOnly: '仅 Install',
+        mpBreakdown: '分项拆分',
+        tableTitle: '近期明细数据',
+        badgeTitle: 'README 动态徽章与版本节点',
+        badgeHint: '基于 site/data/badge.json 的 Shields.io 实时总下载徽章代码：',
+        copyBadge: '复制徽章代码',
+        copied: '已复制到剪贴板',
+        milestonesTitle: '版本里程碑',
+        colPeriod: '时间周期',
+        colOvsx: 'Open VSX',
+        colMpInst: 'MP Install',
+        colMpDl: 'MP Web VSIX',
+        colMpUpd: 'MP Update',
+        colTotal: '双源合计',
+        noPrior: '首周起步',
+        updatedPrefix: '最近抓取：',
+        milestoneLabel: '版本发布'
+      },
+      en: {
+        'nav.features': 'Features',
+        'nav.install': 'Quick Start',
+        'nav.modes': 'Proxy Modes',
+        'nav.docs': 'Docs',
+        'nav.stats': 'Stats',
+        'nav.getExt': 'Get Extension',
+        eyebrow: 'Open VSX + VS Code Marketplace · Auto-synced every 8h',
+        title: 'Download & Install Analytics',
+        subtitle: 'Compare Open VSX and VS Code Marketplace side-by-side with multi-granularity aggregation, release milestones, and CSV/JSON export.',
+        backHome: '← Back Home',
+        kpiTotal: 'Combined Downloads / Installs',
+        kpiLatest: 'Latest Day Delta',
+        kpiAvg7: '7-Day Daily Average',
+        kpiGrowth: '7-Day WoW Growth',
+        kpiSync: '8h Snapshot',
+        lblGranularity: 'Granularity',
+        granDaily: 'Daily',
+        granWeekly: 'Weekly',
+        granMonthly: 'Monthly',
+        granSnaps: '8h Snapshots',
+        lblMode: 'Mode',
+        modeInc: 'Incremental',
+        modeCum: 'Cumulative',
+        lblChart: 'Style',
+        chartStack: 'Stacked Bar',
+        chartGroup: 'Grouped Bar',
+        chartLine: 'Line Trend',
+        lblMpScope: 'Marketplace Metric',
+        mpCombined: 'Install + Web VSIX',
+        mpInstallOnly: 'Install Only',
+        mpBreakdown: 'Full Breakdown',
+        tableTitle: 'Recent Breakdown',
+        badgeTitle: 'README Dynamic Badge & Releases',
+        badgeHint: 'Dynamic Shields.io badge snippet powered by site/data/badge.json:',
+        copyBadge: 'Copy Badge Markdown',
+        copied: 'Copied to clipboard',
+        milestonesTitle: 'Release Milestones',
+        colPeriod: 'Period',
+        colOvsx: 'Open VSX',
+        colMpInst: 'MP Install',
+        colMpDl: 'MP Web VSIX',
+        colMpUpd: 'MP Update',
+        colTotal: 'Combined Total',
+        noPrior: 'Launch week',
+        updatedPrefix: 'Last fetched: ',
+        milestoneLabel: 'Release'
+      }
+    };
+
+    const state = {
+      lang: localStorage.getItem('agy-lang') || localStorage.getItem('agy_stats_lang') || (navigator.language.startsWith('zh') ? 'zh' : 'en'),
+      theme: localStorage.getItem('agy-theme') || 'dark',
+      granularity: 'daily',
+      mode: 'incremental',
+      chartType: 'stackedBar',
+      mpScope: 'combined',
+      raw: null,
+      seriesRows: [],
+      chart: null
+    };
+
+    document.documentElement.setAttribute('data-theme', state.theme);
+
+    function t(key) {
+      return I18N[state.lang]?.[key] || key;
+    }
+
+    function fmtNum(n) {
+      return Number(n || 0).toLocaleString();
+    }
+
+    function showToast(msg) {
+      const el = document.getElementById('toast');
+      el.textContent = msg;
+      el.classList.add('show');
+      setTimeout(() => el.classList.remove('show'), 2000);
+    }
+
+    function getIsoWeekKey(dateStr) {
+      const d = new Date(dateStr + 'T00:00:00Z');
+      const dayNum = d.getUTCDay() || 7;
+      d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+      const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+      const weekNo = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+      return `${d.getUTCFullYear()}-W${String(weekNo).padStart(2, '0')}`;
+    }
+
+    function getMpValueFromDaily(row) {
+      if (state.mpScope === 'install') return row.mpInstall || 0;
+      return (row.mpInstall || 0) + (row.mpDownload || 0);
+    }
+
+    function buildSeriesRows() {
+      const raw = state.raw;
+      if (!raw) return [];
+
+      if (state.granularity === 'snapshots') {
+        const snaps = raw.snapshots || [];
+        let prevOvsx = 0, prevMpInst = 0, prevMpDl = 0, prevMpUpd = 0;
+
+        return snaps.map((s, idx) => {
+          const dt = new Date(s.ts);
+          const label = `${dt.toISOString().slice(0, 10)} ${dt.toISOString().slice(11, 16)}`;
+          const mpInstCum = s.mpInstall || 0;
+          const mpDlCum = s.mpDownload || 0;
+          const mpUpdCum = s.mpUpdate || 0;
+          const ovsxCum = s.openvsxTotal || 0;
+
+          const row = {
+            period: label,
+            dateKey: dt.toISOString().slice(0, 10),
+            ovsx: state.mode === 'cumulative' ? ovsxCum : (idx === 0 ? ovsxCum : Math.max(0, ovsxCum - prevOvsx)),
+            mpInst: state.mode === 'cumulative' ? mpInstCum : (idx === 0 ? mpInstCum : Math.max(0, mpInstCum - prevMpInst)),
+            mpDl: state.mode === 'cumulative' ? mpDlCum : (idx === 0 ? mpDlCum : Math.max(0, mpDlCum - prevMpDl)),
+            mpUpd: state.mode === 'cumulative' ? mpUpdCum : (idx === 0 ? mpUpdCum : Math.max(0, mpUpdCum - prevMpUpd))
+          };
+          prevOvsx = ovsxCum;
+          prevMpInst = mpInstCum;
+          prevMpDl = mpDlCum;
+          prevMpUpd = mpUpdCum;
+          return row;
+        });
+      }
+
+      const buckets = new Map();
+      for (const d of raw.daily || []) {
+        let key = d.date;
+        if (state.granularity === 'weekly') key = getIsoWeekKey(d.date);
+        else if (state.granularity === 'monthly') key = d.date.slice(0, 7);
+
+        if (!buckets.has(key)) {
+          buckets.set(key, { period: key, dateKey: key, ovsx: 0, mpInst: 0, mpDl: 0, mpUpd: 0 });
+        }
+        const b = buckets.get(key);
+        b.ovsx += Number(d.openvsx || 0);
+        b.mpInst += Number(d.mpInstall || 0);
+        b.mpDl += Number(d.mpDownload || 0);
+        b.mpUpd += Number(d.mpUpdate || 0);
+      }
+
+      const sorted = Array.from(buckets.values()).sort((a, b) => a.period.localeCompare(b.period));
+
+      if (state.mode === 'cumulative') {
+        let runOvsx = 0, runInst = 0, runDl = 0, runUpd = 0;
+        return sorted.map(r => {
+          runOvsx += r.ovsx;
+          runInst += r.mpInst;
+          runDl += r.mpDl;
+          runUpd += r.mpUpd;
+          return { ...r, ovsx: runOvsx, mpInst: runInst, mpDl: runDl, mpUpd: runUpd };
+        });
+      }
+
+      return sorted;
+    }
+
+    function findMilestonesMap() {
+      const milestones = state.raw?.milestones || [];
+      const map = new Map();
+      for (const m of milestones) {
+        let key = m.date;
+        if (state.granularity === 'weekly') key = getIsoWeekKey(m.date);
+        else if (state.granularity === 'monthly') key = m.date.slice(0, 7);
+        else if (state.granularity === 'snapshots') {
+          const match = state.seriesRows.find(r => r.dateKey >= m.date);
+          if (match) key = match.period;
+        }
+        if (!map.has(key)) map.set(key, []);
+        map.get(key).push(m);
+      }
+      return map;
+    }
+
+    function updateKpis() {
+      const s = state.raw?.summary || {};
+      const daily = state.raw?.daily || [];
+
+      const ovsxTotal = s.openvsxTotal || 0;
+      const mpTotal = state.mpScope === 'install'
+        ? (s.marketplaceInstall || 0)
+        : ((s.marketplaceInstall || 0) + (s.marketplaceDownload || 0));
+      const combined = ovsxTotal + mpTotal;
+
+      document.getElementById('kpi-total').textContent = fmtNum(combined);
+      document.getElementById('kpi-version').textContent = s.openvsxVersion ? `v${s.openvsxVersion}` : '';
+      document.getElementById('kpi-total-split').innerHTML = `
+        <span><span class="dot" style="background:#06b6d4"></span>Open VSX: <b>${fmtNum(ovsxTotal)}</b></span>
+        <span><span class="dot" style="background:#6366f1"></span>Marketplace: <b>${fmtNum(mpTotal)}</b></span>
+      `;
+
+      const latest = daily[daily.length - 1] || { date: '-', openvsx: 0, mpInstall: 0, mpDownload: 0 };
+      const latestMp = getMpValueFromDaily(latest);
+      document.getElementById('kpi-latest').textContent = `+${fmtNum((latest.openvsx || 0) + latestMp)}`;
+      document.getElementById('kpi-latest-date').textContent = latest.date || '';
+      document.getElementById('kpi-latest-split').innerHTML = `
+        <span><span class="dot" style="background:#06b6d4"></span>Open VSX: +${fmtNum(latest.openvsx || 0)}</span>
+        <span><span class="dot" style="background:#6366f1"></span>Marketplace: +${fmtNum(latestMp)}</span>
+      `;
+
+      const last7 = daily.slice(-7);
+      const prev7 = daily.slice(-14, -7);
+      const sumWindow = (arr) => arr.reduce((acc, r) => acc + (r.openvsx || 0) + getMpValueFromDaily(r), 0);
+      const sumOvsx7 = last7.reduce((acc, r) => acc + (r.openvsx || 0), 0);
+      const sumMp7 = last7.reduce((acc, r) => acc + getMpValueFromDaily(r), 0);
+      const totalLast7 = sumWindow(last7);
+      const totalPrev7 = sumWindow(prev7);
+
+      const avg7 = last7.length ? Math.round((totalLast7 / last7.length) * 10) / 10 : 0;
+      document.getElementById('kpi-avg7').textContent = fmtNum(avg7);
+      document.getElementById('kpi-stars').textContent = s.githubStars !== null && s.githubStars !== undefined ? `★ ${s.githubStars}` : '';
+      document.getElementById('kpi-avg7-split').innerHTML = `
+        <span>7d OVSX: <b>${fmtNum(sumOvsx7)}</b></span>
+        <span>7d MP: <b>${fmtNum(sumMp7)}</b></span>
+      `;
+
+      const growthEl = document.getElementById('kpi-growth');
+      if (totalPrev7 <= 0) {
+        growthEl.textContent = t('noPrior');
+        growthEl.style.color = 'var(--emerald)';
+      } else {
+        const pct = ((totalLast7 - totalPrev7) / totalPrev7) * 100;
+        const sign = pct >= 0 ? '+' : '';
+        growthEl.textContent = `${sign}${pct.toFixed(1)}%`;
+        growthEl.style.color = pct >= 0 ? 'var(--emerald)' : 'var(--danger)';
+      }
+
+      if (s.lastUpdated) {
+        document.getElementById('kpi-updated').textContent = `${t('updatedPrefix')}${new Date(s.lastUpdated).toLocaleString()}`;
+      }
+    }
+
+    function renderChart() {
+      if (!state.chart) {
+        state.chart = echarts.init(document.getElementById('main-chart'));
+        window.addEventListener('resize', () => state.chart?.resize());
+      }
+
+      const isDark = state.theme === 'dark';
+      const axisTextColor = isDark ? '#94a3b8' : '#475569';
+      const splitLineColor = isDark ? 'rgba(148,163,184,0.12)' : 'rgba(15,23,42,0.08)';
+      const legendTextColor = isDark ? '#e2e8f0' : '#0f172a';
+
+      const rows = state.seriesRows;
+      const xLabels = rows.map(r => r.period);
+      const milestoneMap = findMilestonesMap();
+
+      const markLines = [];
+      for (const [key, list] of milestoneMap.entries()) {
+        if (xLabels.includes(key)) {
+          markLines.push({ xAxis: key, name: list.map(m => m.tag).join(', ') });
+        }
+      }
+
+      const isLine = state.chartType === 'line';
+      const isStacked = state.chartType === 'stackedBar';
+      const stackName = isStacked ? 'total' : undefined;
+
+      const makeSeries = (name, color, data, withMarkLine = false) => ({
+        name,
+        type: isLine ? 'line' : 'bar',
+        stack: isLine ? undefined : stackName,
+        smooth: isLine ? 0.25 : false,
+        symbolSize: 7,
+        areaStyle: isLine ? { opacity: 0.14 } : undefined,
+        itemStyle: {
+          color,
+          borderRadius: isLine ? 0 : (isStacked ? [0, 0, 0, 0] : [4, 4, 0, 0])
+        },
+        data,
+        markLine: withMarkLine && markLines.length ? {
+          symbol: ['none', 'none'],
+          label: {
+            formatter: '{b}',
+            color: '#f59e0b',
+            backgroundColor: isDark ? 'rgba(15, 23, 42, 0.9)' : 'rgba(255, 251, 235, 0.96)',
+            padding: [3, 6],
+            borderRadius: 4,
+            fontSize: 11
+          },
+          lineStyle: { color: '#f59e0b', type: 'dashed', width: 1.5 },
+          data: markLines
+        } : undefined
+      });
+
+      const series = [];
+      if (state.mpScope === 'breakdown') {
+        series.push(makeSeries('Open VSX', '#06b6d4', rows.map(r => r.ovsx), true));
+        series.push(makeSeries('Marketplace Install', '#6366f1', rows.map(r => r.mpInst)));
+        series.push(makeSeries('Marketplace Web VSIX', '#ec4899', rows.map(r => r.mpDl)));
+        if (rows.some(r => r.mpUpd > 0)) {
+          series.push(makeSeries('Marketplace Update', '#f59e0b', rows.map(r => r.mpUpd)));
+        }
+      } else {
+        series.push(makeSeries('Open VSX', '#06b6d4', rows.map(r => r.ovsx), true));
+        const mpSeries = rows.map(r => state.mpScope === 'install' ? r.mpInst : (r.mpInst + r.mpDl));
+        series.push(makeSeries('VS Code Marketplace', '#6366f1', mpSeries));
+      }
+
+      const startIdx = Math.max(0, xLabels.length - 45);
+
+      const option = {
+        backgroundColor: 'transparent',
+        tooltip: {
+          trigger: 'axis',
+          axisPointer: { type: isLine ? 'line' : 'shadow' },
+          backgroundColor: isDark ? 'rgba(15, 23, 42, 0.96)' : 'rgba(255, 255, 255, 0.98)',
+          borderColor: isDark ? 'rgba(148, 163, 184, 0.28)' : 'rgba(15, 23, 42, 0.14)',
+          textStyle: { color: isDark ? '#e2e8f0' : '#0f172a', fontSize: 12 },
+          formatter: (params) => {
+            if (!params || !params.length) return '';
+            const idx = params[0].dataIndex;
+            const row = rows[idx];
+            if (!row) return '';
+            const ovsx = row.ovsx || 0;
+            const mpShown = state.mpScope === 'install' ? row.mpInst : (row.mpInst + row.mpDl);
+            const total = ovsx + mpShown + (state.mpScope === 'breakdown' ? row.mpUpd : 0);
+            const pct = (v) => total > 0 ? `${((v / total) * 100).toFixed(1)}%` : '0%';
+            const ms = milestoneMap.get(row.period);
+
+            let html = `<div style="font-weight:700;margin-bottom:6px;font-size:13px">${row.period}</div>`;
+            if (ms && ms.length) {
+              html += `<div style="color:#f59e0b;margin-bottom:6px;font-size:11px">🚀 ${t('milestoneLabel')}: ${ms.map(m => m.tag).join(', ')}</div>`;
+            }
+            html += `
+              <div style="display:flex;justify-content:space-between;gap:18px;margin:3px 0;">
+                <span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#06b6d4;margin-right:6px"></span>Open VSX</span>
+                <span><b>${fmtNum(ovsx)}</b> <span style="opacity:0.7">(${pct(ovsx)})</span></span>
+              </div>
+              <div style="display:flex;justify-content:space-between;gap:18px;margin:3px 0;">
+                <span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#6366f1;margin-right:6px"></span>VS Marketplace</span>
+                <span><b>${fmtNum(mpShown)}</b> <span style="opacity:0.7">(${pct(mpShown)})</span></span>
+              </div>
+              <div style="padding-left:14px;opacity:0.75;font-size:11px;margin:2px 0 4px;">
+                Install: ${fmtNum(row.mpInst)} · Web VSIX: ${fmtNum(row.mpDl)}${row.mpUpd > 0 ? ` · Update: ${fmtNum(row.mpUpd)}` : ''}
+              </div>
+              <div style="border-top:1px solid rgba(148,163,184,0.25);margin-top:6px;padding-top:5px;display:flex;justify-content:space-between;font-weight:700;">
+                <span>${t('colTotal')}</span>
+                <span>${fmtNum(total)}</span>
+              </div>
+            `;
+            return html;
+          }
+        },
+        legend: {
+          top: 0,
+          textStyle: { color: legendTextColor, fontSize: 12 }
+        },
+        grid: {
+          left: 48,
+          right: 20,
+          top: 44,
+          bottom: xLabels.length > 15 ? 64 : 36
+        },
+        xAxis: {
+          type: 'category',
+          data: xLabels,
+          axisLine: { lineStyle: { color: splitLineColor } },
+          axisLabel: { color: axisTextColor, fontSize: 11 }
+        },
+        yAxis: {
+          type: 'value',
+          splitLine: { lineStyle: { color: splitLineColor } },
+          axisLabel: { color: axisTextColor, fontSize: 11 }
+        },
+        dataZoom: xLabels.length > 15 ? [
+          { type: 'inside', startValue: startIdx, endValue: xLabels.length - 1 },
+          {
+            type: 'slider',
+            height: 20,
+            bottom: 10,
+            borderColor: splitLineColor,
+            textStyle: { color: axisTextColor },
+            startValue: startIdx,
+            endValue: xLabels.length - 1
+          }
+        ] : [],
+        series
+      };
+
+      state.chart.setOption(option, true);
+    }
+
+    function renderTable() {
+      const thead = document.getElementById('data-thead');
+      const tbody = document.getElementById('data-tbody');
+
+      thead.innerHTML = `
+        <tr>
+          <th>${t('colPeriod')}</th>
+          <th>${t('colOvsx')}</th>
+          <th>${t('colMpInst')}</th>
+          <th>${t('colMpDl')}</th>
+          <th>${t('colMpUpd')}</th>
+          <th>${t('colTotal')}</th>
+        </tr>
+      `;
+
+      const recent = [...state.seriesRows].reverse().slice(0, 15);
+      tbody.innerHTML = recent.map(r => {
+        const mp = state.mpScope === 'install' ? r.mpInst : (r.mpInst + r.mpDl);
+        const total = r.ovsx + mp + (state.mpScope === 'breakdown' ? r.mpUpd : 0);
+        return `
+          <tr>
+            <td>${r.period}</td>
+            <td style="color:#06b6d4;font-weight:600">${fmtNum(r.ovsx)}</td>
+            <td>${fmtNum(r.mpInst)}</td>
+            <td>${fmtNum(r.mpDl)}</td>
+            <td>${fmtNum(r.mpUpd)}</td>
+            <td style="font-weight:700">${fmtNum(total)}</td>
+          </tr>
+        `;
+      }).join('');
+
+      document.getElementById('table-scope-label').textContent = `${t('lblMode')}: ${t(state.mode === 'incremental' ? 'modeInc' : 'modeCum')}`;
+    }
+
+    function renderMilestones() {
+      const list = state.raw?.milestones || [];
+      const container = document.getElementById('milestone-list');
+      if (!list.length) {
+        container.innerHTML = '<div style="color:var(--text-muted);font-size:0.8rem;">--</div>';
+        return;
+      }
+      container.innerHTML = [...list].reverse().map(m => `
+        <a class="milestone-item" href="${m.url || '#'}" target="_blank" rel="noopener">
+          <span><b>${m.tag}</b> ${m.name && m.name !== m.tag ? `· ${m.name}` : ''}</span>
+          <span style="color:var(--text-muted)">${m.date}</span>
+        </a>
+      `).join('');
+    }
+
+    function applyI18n() {
+      document.querySelectorAll('[data-i18n]').forEach(el => {
+        const k = el.getAttribute('data-i18n');
+        el.textContent = t(k);
+      });
+      document.getElementById('btn-lang').textContent = state.lang === 'zh' ? 'EN' : '中';
+    }
+
+    function renderAll() {
+      state.seriesRows = buildSeriesRows();
+      applyI18n();
+      updateKpis();
+      renderChart();
+      renderTable();
+      renderMilestones();
+      document.getElementById('footer-note').textContent =
+        `Data source: Open VSX & VS Code Marketplace snapshots · Last generated: ${state.raw?.generatedAt || '-'}`;
+    }
+
+    function wireSegment(id, key) {
+      const el = document.getElementById(id);
+      el.addEventListener('click', (e) => {
+        const btn = e.target.closest('button[data-val]');
+        if (!btn) return;
+        el.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        state[key] = btn.getAttribute('data-val');
+        renderAll();
+      });
+    }
+
+    document.getElementById('btn-lang').addEventListener('click', () => {
+      state.lang = state.lang === 'zh' ? 'en' : 'zh';
+      localStorage.setItem('agy-lang', state.lang);
+      renderAll();
+    });
+
+    document.getElementById('btn-theme').addEventListener('click', () => {
+      state.theme = state.theme === 'dark' ? 'light' : 'dark';
+      document.documentElement.setAttribute('data-theme', state.theme);
+      localStorage.setItem('agy-theme', state.theme);
+      renderChart();
+    });
+
+    document.getElementById('btn-copy-badge').addEventListener('click', async () => {
+      const text = document.getElementById('badge-md').textContent;
+      await navigator.clipboard.writeText(text);
+      showToast(t('copied'));
+    });
+
+    document.getElementById('btn-csv').addEventListener('click', () => {
+      const headers = ['Period', 'OpenVSX', 'Marketplace_Install', 'Marketplace_WebVSIX', 'Marketplace_Update', 'Combined'];
+      const lines = [headers.join(',')];
+      for (const r of state.seriesRows) {
+        const mp = state.mpScope === 'install' ? r.mpInst : (r.mpInst + r.mpDl);
+        const total = r.ovsx + mp + (state.mpScope === 'breakdown' ? r.mpUpd : 0);
+        lines.push([r.period, r.ovsx, r.mpInst, r.mpDl, r.mpUpd, total].join(','));
+      }
+      const blob = new Blob(['\uFEFF' + lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `antigravity-agy-proxy-${state.granularity}-${state.mode}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+
+    document.getElementById('btn-json').addEventListener('click', () => {
+      const blob = new Blob([JSON.stringify(state.raw, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'antigravity-agy-proxy-stats.json';
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+
+    wireSegment('seg-granularity', 'granularity');
+    wireSegment('seg-mode', 'mode');
+    wireSegment('seg-chart', 'chartType');
+    wireSegment('seg-mp-scope', 'mpScope');
+
+    async function init() {
+      try {
+        const res = await fetch('./data/stats.json?t=' + Date.now());
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        state.raw = await res.json();
+        renderAll();
+      } catch (err) {
+        document.getElementById('main-chart').innerHTML =
+          `<div style="padding:40px;text-align:center;color:var(--danger);">Failed to load stats.json (${err.message}).</div>`;
+      }
+    }
+
+    init();
+  </script>
+</body>
+</html>
+

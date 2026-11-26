@@ -12,6 +12,9 @@
   <a href="https://marketplace.visualstudio.com/items?itemName=EmorZz1G.antigravity-agy-proxy">
     <img src="https://img.shields.io/visual-studio-marketplace/v/EmorZz1G.antigravity-agy-proxy?style=for-the-badge&label=VS%20Code%20Marketplace&color=2563eb" alt="VS Code Marketplace Version" />
   </a>
+  <a href="https://emorzz1g.github.io/antigravity-agy-proxy/stats.html">
+    <img src="https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2FEmorZz1G%2Fantigravity-agy-proxy%2Fmain%2Fsite%2Fdata%2Fbadge.json&style=for-the-badge&color=0284c7" alt="Total Downloads" />
+  </a>
   <a href="https://github.com/EmorZz1G/antigravity-agy-proxy/blob/main/LICENSE">
     <img src="https://img.shields.io/badge/License-MIT-10b981?style=for-the-badge" alt="MIT License" />
   </a>

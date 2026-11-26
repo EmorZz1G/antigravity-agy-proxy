@@ -6,6 +6,7 @@ src/**
 docs/**
 site/**
 seller/**
+.github/scripts/**
 *.vsix
 .gitignore
 .yarnrc
